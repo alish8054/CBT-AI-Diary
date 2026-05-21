@@ -21,6 +21,7 @@ import PsychologistAssignments from './components/PsychologistAssignments';
 import PsychologistProfile from './components/PsychologistProfile';
 import Chat from './components/Chat';
 import InnerWorld from './components/InnerWorld';
+import DailyAdvice from './components/DailyAdvice';
 import './components/App.css';
 import {DEFAULT_THEME, EMOTION_THEMES} from "./src/themes";
 
@@ -58,7 +59,14 @@ function App() {
     }, []);
     return (
         <Router>
-            <Toaster position="top-center" />
+            <Toaster
+                position="top-center"
+                toastOptions={{
+                    duration: 3000,
+                    success: { duration: 2500 },
+                    error: { duration: 4000 }
+                }}
+            />
             <Routes>
                 {/* ПУБЛИЧНЫЕ */}
                 <Route path="/" element={<Welcome />} />
@@ -74,6 +82,7 @@ function App() {
                 <Route path="/chat" element={<ClientLayout><Chat /></ClientLayout>} />
                 <Route path="/client-assignments" element={<RoleGuard allowedRole="CLIENT"><ClientLayout><ClientAssignments /></ClientLayout></RoleGuard>} />
                 <Route path="/inner-world" element={<RoleGuard allowedRole="CLIENT"><ClientLayout><InnerWorld /></ClientLayout></RoleGuard>} />
+                <Route path="/ai-advice" element={<RoleGuard allowedRole="CLIENT"><ClientLayout><DailyAdvice /></ClientLayout></RoleGuard>} />
 
                 {/* ПСИХОЛОГ */}
                 <Route path="/psychologist" element={<RoleGuard allowedRole="PSYCHOLOGIST"><PsychologistLayout><PsychologistHome /></PsychologistLayout></RoleGuard>} />

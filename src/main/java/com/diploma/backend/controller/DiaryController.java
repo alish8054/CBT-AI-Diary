@@ -80,4 +80,14 @@ public class DiaryController {
             return ResponseEntity.badRequest().body("Ошибка: " + e.getMessage());
         }
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteDiaryEntry(@PathVariable Long id) {
+        if (!diaryRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        diaryRepository.deleteById(id);
+        return ResponseEntity.ok().build();
+    }
 }

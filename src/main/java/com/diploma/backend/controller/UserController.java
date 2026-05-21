@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -56,6 +57,38 @@ public class UserController {
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateUser(@PathVariable Long id, @RequestBody Map<String, Object> payload) {
+        try {
+            User user = userRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            if (payload.containsKey("fullName")) user.setFullName(asString(payload.get("fullName")));
+            if (payload.containsKey("email")) user.setEmail(asString(payload.get("email")));
+            if (payload.containsKey("phone")) user.setPhone(asString(payload.get("phone")));
+            if (payload.containsKey("birthDate")) user.setBirthDate(asString(payload.get("birthDate")));
+            if (payload.containsKey("aboutMe")) user.setAboutMe(asString(payload.get("aboutMe")));
+            if (payload.containsKey("specialization")) user.setSpecialization(asString(payload.get("specialization")));
+            if (payload.containsKey("certificateUrls")) user.setCertificateUrls(asString(payload.get("certificateUrls")));
+            if (payload.containsKey("socialLinks")) user.setSocialLinks(asString(payload.get("socialLinks")));
+            if (payload.containsKey("experience")) user.setExperience(asInteger(payload.get("experience")));
+
+            return ResponseEntity.ok(userRepository.save(user));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error updating user: " + e.getMessage());
+        }
+    }
+
+    private String asString(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    private Integer asInteger(Object value) {
+        if (value == null || value.toString().isBlank()) return null;
+        return Integer.valueOf(value.toString());
+    }
+
     @PostMapping("/{clientId}/select-psychologist/{psychId}")
     public ResponseEntity<?> selectPsychologist(@PathVariable Long clientId, @PathVariable Long psychId) {
         try {

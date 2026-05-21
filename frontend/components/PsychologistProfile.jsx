@@ -47,6 +47,40 @@ const PsychologistProfile = () => {
     };
 
     const handleSave = async () => {
+        const toastId = toast.loading("Saving...");
+
+        try {
+            const res = await fetch(`/api/users/${user.id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(formData)
+            });
+
+            if (!res.ok) {
+                throw new Error(await res.text());
+            }
+
+            const savedUser = await res.json();
+            localStorage.setItem('user', JSON.stringify(savedUser));
+            setUser(savedUser);
+            setFormData({
+                fullName: savedUser.fullName || '',
+                specialization: savedUser.specialization || '',
+                experience: savedUser.experience || '',
+                aboutMe: savedUser.aboutMe || '',
+                phone: savedUser.phone || '',
+                certificateUrls: savedUser.certificateUrls || '',
+                socialLinks: savedUser.socialLinks || ''
+            });
+            setIsEditing(false);
+            toast.success("Profile saved", { id: toastId });
+            return;
+        } catch (error) {
+            console.error(error);
+            toast.error("Profile was not saved", { id: toastId });
+            return;
+        }
+
         // Здесь должен быть fetch на обновление данных пользователя
         // Пока обновляем локально для вида
         const updated = { ...user, ...formData };
@@ -81,7 +115,11 @@ const PsychologistProfile = () => {
 
             <div className="profile-header-info">
                 <div>
-                    <h1 className="profile-name-large">{user.fullName || user.username}</h1>
+                    {isEditing ? (
+                        <input className="edit-input" value={formData.fullName} onChange={(e)=>setFormData({...formData, fullName: e.target.value})} />
+                    ) : (
+                        <h1 className="profile-name-large">{user.fullName || user.username}</h1>
+                    )}
                     <span className="profile-role-badge">Психолог</span>
                 </div>
                 <button onClick={() => isEditing ? handleSave() : setIsEditing(true)} className="btn-primary">
@@ -97,6 +135,21 @@ const PsychologistProfile = () => {
                 </div>
 
                 {/* СЕРТИФИКАТЫ И СОЦСЕТИ */}
+                <div className="detail-box">
+                    <div className="detail-label">Phone</div>
+                    {isEditing ? <input className="edit-input" value={formData.phone} onChange={(e)=>setFormData({...formData, phone: e.target.value})}/> : <div className="detail-value">{user.phone || '—'}</div>}
+                </div>
+
+                <div className="detail-box">
+                    <div className="detail-label">Experience</div>
+                    {isEditing ? <input className="edit-input" type="number" min="0" value={formData.experience} onChange={(e)=>setFormData({...formData, experience: e.target.value})}/> : <div className="detail-value">{user.experience ? `${user.experience} years` : '—'}</div>}
+                </div>
+
+                <div className="detail-box" style={{gridColumn: '1 / -1'}}>
+                    <div className="detail-label">About</div>
+                    {isEditing ? <textarea className="edit-input" value={formData.aboutMe} onChange={(e)=>setFormData({...formData, aboutMe: e.target.value})}/> : <div className="detail-value">{user.aboutMe || '—'}</div>}
+                </div>
+
                 <div className="detail-box" style={{gridColumn: '1 / -1'}}>
                     <div className="detail-label">Сертификаты (Ссылки)</div>
                     {isEditing ? (

@@ -29,13 +29,16 @@ export default function DreamAnalysis() {
         const res = await fetch('/api/dreams', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.id, content: newDream })
+            body: JSON.stringify({ userId: user.id, text: newDream })
         });
 
         if (res.ok) {
             setNewDream('');
             fetchDreams();
             toast.success("Сон сохранен");
+        } else {
+            const message = await res.text();
+            toast.error(message || "Не удалось сохранить сон");
         }
     };
 

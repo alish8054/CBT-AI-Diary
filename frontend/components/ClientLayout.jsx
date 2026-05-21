@@ -1,6 +1,5 @@
 import React from 'react';
 import Sidebar from './Sidebar';
-import { Toaster } from 'react-hot-toast';
 import BackgroundElements from './BackgroundElements';
 
 const ClientLayout = ({ children }) => {
@@ -20,7 +19,6 @@ const ClientLayout = ({ children }) => {
 
             {/* 3. БЕЛАЯ ЗОНА: Обертка для контента */}
             <div className="main-content">
-                <Toaster position="top-center" />
                 {/* Здесь будет отрисовываться diary-container (белый лист) */}
                 {children}
             </div>

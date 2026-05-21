@@ -33,6 +33,9 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String certificateUrls;
 
+    @Column(columnDefinition = "TEXT")
+    private String socialLinks;
+
     @Column(length = 1000) // О себе
     private String aboutMe;
 

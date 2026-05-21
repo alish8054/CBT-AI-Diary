@@ -98,12 +98,13 @@ const Sidebar = () => {
                 <Link to="/client-home" style={isActive('/client-home') ? linkActive : linkNormal}>🏠 Главная</Link>
                 <Link to="/diary" style={isActive('/diary') ? linkActive : linkNormal}>📖 Дневник</Link>
                 <Link to="/dreams" style={isActive('/dreams') ? linkActive : linkNormal}>🌙 Сны</Link>
+                <Link to="/ai-advice" style={isActive('/ai-advice') ? linkActive : linkNormal}>🤖 AI Советы</Link>
                 <Link to="/inner-world" style={isActive('/inner-world') ? linkActive : linkNormal}>✨ Мир</Link>
                 <Link to="/chat" style={isActive('/chat') ? linkActive : linkNormal}>💬 Чат</Link>
                 <Link to="/client-assignments" style={isActive('/client-assignments') ? linkActive : linkNormal}>📝 Задания</Link>
 
                 <button onClick={handleLogout} style={{
-                    marginTop: 'auto', background: 'rgba(231, 76, 60, 0.2)', color: '#ff6b6b',
+                    marginTop: 'auto', background: 'transparent', color: 'rgba(255,255,255,0.7)',
                     border: 'none', padding: '12px', borderRadius: '12px', cursor: 'pointer',
                     display: 'flex', alignItems: 'center', gap: '15px', fontWeight: 'bold', fontSize: '1rem'
                 }}>

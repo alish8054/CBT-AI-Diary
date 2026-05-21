@@ -14,14 +14,72 @@ export default function ClientDetails() {
     const [client, setClient] = useState(null);
     const [moodHistory, setMoodHistory] = useState([]);
     const [records, setRecords] = useState([]);
+    const [diaryRecords, setDiaryRecords] = useState([]);
+    const [dreamRecords, setDreamRecords] = useState([]);
     const [activeTab, setActiveTab] = useState('diary');
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState('');
     const [aiSummary, setAiSummary] = useState('');
     const [generatingSummary, setGeneratingSummary] = useState(false);
 
     useEffect(() => {
-        // ... (existing useEffect code remains same)
+        let isMounted = true;
+
+        const fetchJson = async (url) => {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`${response.status} ${response.statusText}`);
+            }
+            return response.json();
+        };
+
+        const loadClientDetails = async () => {
+            setLoading(true);
+            setError('');
+
+            try {
+                const [clientData, moodsData, diaryData, dreamsData] = await Promise.all([
+                    fetchJson(`/api/users/${id}`),
+                    fetchJson(`/api/psychologist/client/${id}/mood-history`),
+                    fetchJson(`/api/diary/user/${id}`),
+                    fetchJson(`/api/dreams/user/${id}`)
+                ]);
+
+                if (!isMounted) return;
+
+                const formattedMoodHistory = moodsData.map(item => ({
+                    ...item,
+                    score: moodToScore(item.mood)
+                }));
+
+                setClient(clientData);
+                setMoodHistory(formattedMoodHistory);
+                setDiaryRecords(diaryData);
+                setDreamRecords(dreamsData);
+                setRecords(activeTab === 'dreams' ? dreamsData : diaryData);
+            } catch (e) {
+                console.error('Client details loading failed:', e);
+                if (isMounted) {
+                    setClient(null);
+                    setError('Не удалось загрузить досье клиента. Проверьте, что сервер запущен и клиент существует.');
+                }
+            } finally {
+                if (isMounted) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        loadClientDetails();
+
+        return () => {
+            isMounted = false;
+        };
     }, [id]);
+
+    useEffect(() => {
+        setRecords(activeTab === 'dreams' ? dreamRecords : diaryRecords);
+    }, [activeTab, diaryRecords, dreamRecords]);
 
     const handleGenerateSummary = async () => {
         setGeneratingSummary(true);
@@ -46,6 +104,8 @@ export default function ClientDetails() {
         localStorage.setItem('chatTarget', JSON.stringify(client));
         navigate('/psychologist/chat');
     };
+
+    if (error) return <div className="diary-container">Error loading client details. Check that the backend is running and the client exists.</div>;
 
     if (loading) return <div className="diary-container">⏳ Загрузка досье...</div>;
     if (!client) return <div className="diary-container">❌ Клиент не найден</div>;

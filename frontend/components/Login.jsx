@@ -36,7 +36,7 @@ const Login = () => {
                 // 2. !!! САМОЕ ВАЖНОЕ: СОХРАНЯЕМ ИХ В БРАУЗЕРЕ !!!
                 localStorage.setItem('user', JSON.stringify(data));
 
-                toast.success(`Добро пожаловать, ${data.fullName || data.username}!`);
+                toast.success(`Добро пожаловать, ${data.fullName || data.username}!`, { duration: 2500 });
 
                 // 3. Перенаправляем в зависимости от роли
                 if (data.role === 'PSYCHOLOGIST') {

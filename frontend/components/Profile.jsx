@@ -62,7 +62,38 @@ const Profile = () => {
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
+        const toastId = toast.loading("Saving...");
+
+        try {
+            const res = await fetch(`/api/users/${user.id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(formData)
+            });
+
+            if (!res.ok) {
+                throw new Error(await res.text());
+            }
+
+            const savedUser = await res.json();
+            localStorage.setItem('user', JSON.stringify(savedUser));
+            setUser(savedUser);
+            setFormData({
+                fullName: savedUser.fullName || '',
+                phone: savedUser.phone || '',
+                aboutMe: savedUser.aboutMe || '',
+                email: savedUser.email || ''
+            });
+            setIsEditing(false);
+            toast.success("Saved", { id: toastId });
+            return;
+        } catch (error) {
+            console.error(error);
+            toast.error("Profile was not saved", { id: toastId });
+            return;
+        }
+
         const updatedUser = { ...user, ...formData };
         localStorage.setItem('user', JSON.stringify(updatedUser));
         setUser(updatedUser);

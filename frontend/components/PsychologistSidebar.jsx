@@ -32,7 +32,13 @@ const PsychologistSidebar = () => {
                     🎯 <span>Назначить задания</span>
                 </Link>
                 <Link to="/psychologist/chat" className={`nav-item ${isActive('/psychologist/chat') ? 'highlight-item' : ''}`}>💬 <span>Чат</span></Link>
-                <button onClick={() => {localStorage.clear(); window.location.href='/login'}} className="nav-item logout-btn">🚪 <span>Выход</span></button>
+                <button
+                    onClick={() => {localStorage.clear(); window.location.href='/login'}}
+                    className="nav-item logout-btn"
+                    style={{background: 'transparent', color: 'rgba(255,255,255,0.7)', boxShadow: 'none'}}
+                >
+                    🚪 <span>Выход</span>
+                </button>
             </nav>
         </div>
     );

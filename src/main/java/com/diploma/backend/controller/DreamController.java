@@ -7,8 +7,10 @@ import com.diploma.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +24,9 @@ public class DreamController {
     private final UserRepository userRepository;
     private final ChatClient.Builder chatClientBuilder;
 
+    @Value("${spring.ai.openai.api-key:}")
+    private String openAiApiKey;
+
     @GetMapping
     public List<DreamEntry> getDreams(@RequestParam Long userId) {
         return dreamRepository.findTop3ByUserIdOrderByCreatedAtDesc(userId);
@@ -33,61 +38,68 @@ public class DreamController {
     }
 
     @PostMapping
-    public DreamEntry analyzeDream(@RequestBody Map<String, Object> payload) {
-        Long userId = Long.valueOf(payload.get("userId").toString());
-        String text = payload.get("text").toString();
+    public ResponseEntity<?> analyzeDream(@RequestBody Map<String, Object> payload) {
+        try {
+            Long userId = Long.valueOf(payload.get("userId").toString());
+            Object textValue = payload.get("text") != null ? payload.get("text") : payload.get("content");
+            if (textValue == null || textValue.toString().trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Dream text is required");
+            }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
-        ChatClient chatClient = chatClientBuilder.build();
-String promptStr = "Ты - толкователь снов, опирающийся на психологию Юнга и Фрейда, но дающий современные трактовки. " +
-        "Проанализируй этот сон: \"" + text + "\". " +
-        "Выдели ключевые символы и объясни, что они могут значить для подсознания. Будь краток.";
+            String text = textValue.toString();
+            DreamEntry entry = new DreamEntry();
+            entry.setText(text);
+            entry.setInterpretation(generateInterpretation(text));
+            entry.setCreatedAt(LocalDateTime.now());
+            entry.setUser(user);
 
-String interpretation;
-try {
-    interpretation = chatClient.prompt(new Prompt(promptStr))
-            .call()
-            .content();
-} catch (Exception e) {
-            interpretation = "Ошибка интерпретации: " + e.getMessage();
+            return ResponseEntity.ok(dreamRepository.save(entry));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
-
-        DreamEntry entry = new DreamEntry();
-        entry.setText(text);
-        entry.setInterpretation(interpretation);
-        entry.setCreatedAt(LocalDateTime.now());
-        entry.setUser(user);
-
-        return dreamRepository.save(entry);
     }
-    // Добавь это внутрь DreamController.java
 
-    // ПОЛУЧИТЬ СНЫ ПОЛЬЗОВАТЕЛЯ
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<DreamEntry>> getUserDreams(@PathVariable Long userId) {
-        // Убедись, что в DreamRepository есть метод findByUserId(Long userId)
         return ResponseEntity.ok(dreamRepository.findByUserId(userId));
     }
-    // ОБНОВИТЬ СОН
+
     @PutMapping("/{id}")
     public ResponseEntity<?> updateDream(@PathVariable Long id, @RequestBody Map<String, String> payload) {
         try {
-            var dream = dreamRepository.findById(id).orElseThrow();
-
-            dream.setText(payload.get("text") != null ? payload.get("text") : payload.get("content"));
+            DreamEntry dream = dreamRepository.findById(id).orElseThrow();
+            String text = payload.get("text") != null ? payload.get("text") : payload.get("content");
+            if (text == null || text.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Dream text is required");
+            }
+            dream.setText(text);
 
             return ResponseEntity.ok(dreamRepository.save(dream));
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Ошибка: " + e.getMessage());
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
         }
     }
 
-    // УДАЛИТЬ СОН
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteDream(@PathVariable Long id) {
         dreamRepository.deleteById(id);
         return ResponseEntity.ok().build();
+    }
+
+    private String generateInterpretation(String text) {
+        if (openAiApiKey == null || openAiApiKey.isBlank() || "local-development-key".equals(openAiApiKey)) {
+            return "AI interpretation is unavailable in local mode. Set OPENAI_API_KEY to enable it.";
+        }
+
+        try {
+            ChatClient chatClient = chatClientBuilder.build();
+            String prompt = "Analyze this dream briefly from a psychological perspective: \"" + text + "\"";
+            return chatClient.prompt(new Prompt(prompt)).call().content();
+        } catch (Exception e) {
+            return "AI interpretation error: " + e.getMessage();
+        }
     }
 }

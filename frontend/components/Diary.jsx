@@ -65,6 +65,20 @@ export default function DiaryHome() {
         }
     };
 
+    const handleDelete = async (id) => {
+        const res = await fetch(`/api/diary/${id}`, { method: 'DELETE' });
+
+        if (res.ok) {
+            if (editingId === id) {
+                setEditingId(null);
+            }
+            fetchEntries();
+            toast.success("Запись удалена");
+        } else {
+            toast.error("Не удалось удалить запись");
+        }
+    };
+
     // ПРОВЕРКА: Писал ли пользователь сегодня?
     const todayStr = new Date().toLocaleDateString();
     const hasTodayEntry = entries.some(entry => new Date(entry.createdAt).toLocaleDateString() === todayStr);
@@ -102,9 +116,9 @@ export default function DiaryHome() {
                         <small style={{color: '#94a3b8', fontWeight: 'bold'}}>{new Date(entry.createdAt).toLocaleDateString()}</small>
                         <small style={{color: '#cbd5e1', marginLeft: '10px'}}>{new Date(entry.createdAt).toLocaleTimeString()}</small>
 
-                        {/* ОСТАЛАСЬ ТОЛЬКО КНОПКА РЕДАКТИРОВАНИЯ */}
-                        <div style={{position: 'absolute', top: '15px', right: '15px'}}>
+                        <div style={{position: 'absolute', top: '15px', right: '15px', display: 'flex', gap: '8px'}}>
                             <button onClick={() => startEdit(entry)} style={{background: '#f1f5f9', border: 'none', padding: '8px', borderRadius: '8px', cursor: 'pointer', fontSize: '1.1rem'}}>✏️ Дополнить</button>
+                            <button onClick={() => handleDelete(entry.id)} style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#ef4444'}}>🗑️</button>
                         </div>
 
                         {editingId === entry.id ? (
