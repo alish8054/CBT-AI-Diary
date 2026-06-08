@@ -11,12 +11,44 @@ const QUICK_PROMPTS_KEYS = [
 
 export default function AiChatPage() {
   const { t } = useLanguage();
-  const [messages, setMessages] = useState([
-    { role: 'ai', text: t('ai_chat_welcome'), ts: new Date() }
-  ]);
+  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const bottomRef = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadHistory = async () => {
+      setHistoryLoading(true);
+      try {
+        const history = await aiApi.history();
+        if (cancelled) return;
+
+        if (Array.isArray(history) && history.length > 0) {
+          setMessages(history.map(item => ({
+            role: item.role,
+            text: item.text,
+            ts: item.createdAt ? new Date(item.createdAt) : new Date(),
+          })));
+        } else {
+          setMessages([{ role: 'ai', text: t('ai_chat_welcome'), ts: new Date() }]);
+        }
+      } catch {
+        if (!cancelled) {
+          setMessages([{ role: 'ai', text: t('ai_chat_welcome'), ts: new Date() }]);
+        }
+      } finally {
+        if (!cancelled) setHistoryLoading(false);
+      }
+    };
+
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -24,7 +56,7 @@ export default function AiChatPage() {
 
   const send = async (text) => {
     const message = (text || input).trim();
-    if (!message || loading) return;
+    if (!message || loading || historyLoading) return;
     setInput('');
 
     setMessages(prev => [...prev, { role: 'user', text: message, ts: new Date() }]);
@@ -87,10 +119,23 @@ export default function AiChatPage() {
                 {msg.text}
               </div>
               <div className="message-time">
-                {msg.ts.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                {msg.ts instanceof Date && !Number.isNaN(msg.ts.getTime())
+                  ? msg.ts.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+                  : ''}
               </div>
             </div>
           ))}
+
+          {historyLoading && (
+            <div style={{
+              color: 'var(--text-muted)',
+              fontSize: 13,
+              textAlign: 'center',
+              padding: '18px 0'
+            }}>
+              {t('loading')}
+            </div>
+          )}
 
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -124,7 +169,7 @@ export default function AiChatPage() {
         <div style={{ padding: '8px 16px 4px', borderTop: '1px solid var(--border-subtle)' }}>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {QUICK_PROMPTS_KEYS.map(q => (
-              <button key={q.key} onClick={() => send(t(q.key))}
+              <button key={q.key} onClick={() => send(t(q.key))} disabled={historyLoading || loading}
                 style={{
                   background: 'var(--bg-surface-2)',
                   border: '1px solid var(--border-subtle)',
@@ -147,9 +192,9 @@ export default function AiChatPage() {
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }}}
             placeholder={t('ai_chat_placeholder')}
-            disabled={loading}
+            disabled={loading || historyLoading}
           />
-          <button className="chat-send-btn" onClick={() => send()} disabled={loading}>
+          <button className="chat-send-btn" onClick={() => send()} disabled={loading || historyLoading}>
             ➤
           </button>
         </div>
