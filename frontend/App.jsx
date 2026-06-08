@@ -5,7 +5,6 @@ import { Toaster } from 'react-hot-toast';
 import Welcome from './components/Welcome';
 import Login from './components/Login';
 import Register from './components/Register';
-import MoodCheck from './components/MoodCheck';
 import ClientHome from './components/ClientHome';
 import ClientLayout from './components/ClientLayout';
 import Profile from './components/Profile';
@@ -21,42 +20,19 @@ import PsychologistAssignments from './components/PsychologistAssignments';
 import PsychologistProfile from './components/PsychologistProfile';
 import Chat from './components/Chat';
 import InnerWorld from './components/InnerWorld';
-import DailyAdvice from './components/DailyAdvice';
+import AiChatPage from './src/pages/AiChatPage';
+import { getAuthUser } from './src/authStorage';
 import './components/App.css';
-import {DEFAULT_THEME, EMOTION_THEMES} from "./src/themes";
 
 // Защита маршрутов по ролям
 const RoleGuard = ({ children, allowedRole }) => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const user = getAuthUser();
     if (!user.id) return <Navigate to="/login" replace />;
     if (user.role !== allowedRole) return <Navigate to="/" replace />;
     return children;
 };
 
 function App() {
-    React.useEffect(() => {
-        try {
-            const user = JSON.parse(localStorage.getItem('user') || '{}');
-            const keyPart = user.id ? user.id : 'guest';
-            // Ищем сохраненное настроение за сегодня
-            const dateKey = `mood_${keyPart}_${new Date().toDateString()}`;
-            const savedMoodId = localStorage.getItem(dateKey);
-
-            let theme = DEFAULT_THEME;
-            if (savedMoodId && EMOTION_THEMES[savedMoodId]) {
-                theme = EMOTION_THEMES[savedMoodId];
-            }
-
-            // Устанавливаем глобальные CSS-переменные
-            const root = document.documentElement;
-            root.style.setProperty('--theme-primary', theme.colors.primary);
-            root.style.setProperty('--theme-secondary', theme.colors.secondary);
-            root.style.setProperty('--theme-animation', theme.animation);
-
-        } catch (e) {
-            console.error("Ошибка темы:", e);
-        }
-    }, []);
     return (
         <Router>
             <Toaster
@@ -72,7 +48,6 @@ function App() {
                 <Route path="/" element={<Welcome />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
-                <Route path="/mood-check" element={<MoodCheck />} />
 
                 {/* КЛИЕНТ */}
                 <Route path="/client-home" element={<RoleGuard allowedRole="CLIENT"><ClientLayout><ClientHome /></ClientLayout></RoleGuard>} />
@@ -82,7 +57,7 @@ function App() {
                 <Route path="/chat" element={<ClientLayout><Chat /></ClientLayout>} />
                 <Route path="/client-assignments" element={<RoleGuard allowedRole="CLIENT"><ClientLayout><ClientAssignments /></ClientLayout></RoleGuard>} />
                 <Route path="/inner-world" element={<RoleGuard allowedRole="CLIENT"><ClientLayout><InnerWorld /></ClientLayout></RoleGuard>} />
-                <Route path="/ai-advice" element={<RoleGuard allowedRole="CLIENT"><ClientLayout><DailyAdvice /></ClientLayout></RoleGuard>} />
+                <Route path="/ai-chat" element={<RoleGuard allowedRole="CLIENT"><ClientLayout><AiChatPage /></ClientLayout></RoleGuard>} />
 
                 {/* ПСИХОЛОГ */}
                 <Route path="/psychologist" element={<RoleGuard allowedRole="PSYCHOLOGIST"><PsychologistLayout><PsychologistHome /></PsychologistLayout></RoleGuard>} />

@@ -3,11 +3,20 @@ package com.diploma.backend.controller;
 import com.diploma.backend.Entity.DiaryEntry;
 import com.diploma.backend.Entity.User;
 import com.diploma.backend.repository.DiaryEntryRepository;
-import com.diploma.backend.repository.UserRepository;
+import com.diploma.backend.security.AccessControlService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import java.time.LocalDateTime;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import java.util.List;
 import java.util.Map;
 
@@ -17,77 +26,60 @@ import java.util.Map;
 public class DiaryController {
 
     private final DiaryEntryRepository diaryRepository;
-    private final UserRepository userRepository;
+    private final AccessControlService accessControl;
+
     @GetMapping
-    public List<DiaryEntry> getAllEntries(@RequestParam Long userId) {
-        return diaryRepository.findAllByUser_IdOrderByCreatedAtDesc(userId);
+    public List<DiaryEntry> getAllEntries(@RequestParam(required = false) Long userId, HttpServletRequest request) {
+        Long targetUserId = userId == null ? accessControl.currentUserId(request) : userId;
+        accessControl.requireSelfOrAssignedPsychologist(request, targetUserId);
+        return diaryRepository.findAllByUser_IdOrderByCreatedAtDesc(targetUserId);
     }
 
     @GetMapping("/all")
-    public List<DiaryEntry> getHistory(@RequestParam Long userId) {
-        return diaryRepository.findAllByUser_IdOrderByCreatedAtDesc(userId);
-
+    public List<DiaryEntry> getHistory(@RequestParam(required = false) Long userId, HttpServletRequest request) {
+        return getAllEntries(userId, request);
     }
+
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<DiaryEntry>> getUserEntries(@PathVariable Long userId) {
+    public ResponseEntity<List<DiaryEntry>> getUserEntries(@PathVariable Long userId, HttpServletRequest request) {
+        accessControl.requireSelfOrAssignedPsychologist(request, userId);
         return ResponseEntity.ok(diaryRepository.findByUser_Id(userId));
     }
 
-    // 1. СОЗДАНИЕ (с защитой от спама)
     @PostMapping
-    public ResponseEntity<?> createDiaryEntry(@RequestBody Map<String, Object> payload) {
-        try {
-            Long userId = Long.valueOf(payload.get("userId").toString());
+    public ResponseEntity<?> createDiaryEntry(@RequestBody Map<String, Object> payload, HttpServletRequest request) {
+        Long userId = accessControl.currentUserId(request);
+        var entries = diaryRepository.findByUser_Id(userId);
+        java.time.LocalDate today = java.time.LocalDate.now();
+        boolean hasTodayEntry = entries.stream()
+                .anyMatch(e -> e.getCreatedAt().toLocalDate().equals(today));
 
-            // Используем правильный метод с подчеркиванием
-            var entries = diaryRepository.findByUser_Id(userId);
-
-            // Проверяем, есть ли среди них запись за СЕГОДНЯ
-            java.time.LocalDate today = java.time.LocalDate.now();
-            boolean hasTodayEntry = entries.stream()
-                    .anyMatch(e -> e.getCreatedAt().toLocalDate().equals(today));
-
-            if (hasTodayEntry) {
-                return ResponseEntity.badRequest().body("Вы уже сделали основную запись сегодня. Вы можете только дополнить её.");
-            }
-
-            // Достаем самого юзера из базы
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
-
-            DiaryEntry entry = new DiaryEntry();
-            entry.setUser(user); // Передаем ЦЕЛОГО юзера, а не просто ID
-            entry.setText((String) payload.get("text"));
-
-            return ResponseEntity.ok(diaryRepository.save(entry));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Ошибка: " + e.getMessage());
+        if (hasTodayEntry) {
+            return ResponseEntity.badRequest().body("You already made the main diary entry today.");
         }
+
+        User user = accessControl.currentUser(request);
+        DiaryEntry entry = new DiaryEntry();
+        entry.setUser(user);
+        entry.setText((String) payload.get("text"));
+
+        return ResponseEntity.ok(diaryRepository.save(entry));
     }
 
-    // ОБНОВИТЬ ЗАПИСЬ В ДНЕВНИКЕ
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateDiaryEntry(@PathVariable Long id, @RequestBody Map<String, String> payload) {
-        try {
-            // Замени DiaryEntry на то, как точно называется твоя сущность (может быть Diary)
-            var entry = diaryRepository.findById(id).orElseThrow();
-
-            // Замени setText на setContent, если в сущности поле называется content
-            entry.setText(payload.get("text"));
-
-            return ResponseEntity.ok(diaryRepository.save(entry));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Ошибка: " + e.getMessage());
-        }
+    public ResponseEntity<?> updateDiaryEntry(@PathVariable Long id, @RequestBody Map<String, String> payload,
+                                              HttpServletRequest request) {
+        DiaryEntry entry = diaryRepository.findById(id).orElseThrow();
+        accessControl.requireSelf(request, entry.getUser().getId());
+        entry.setText(payload.get("text"));
+        return ResponseEntity.ok(diaryRepository.save(entry));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteDiaryEntry(@PathVariable Long id) {
-        if (!diaryRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
-        }
-
-        diaryRepository.deleteById(id);
+    public ResponseEntity<?> deleteDiaryEntry(@PathVariable Long id, HttpServletRequest request) {
+        DiaryEntry entry = diaryRepository.findById(id).orElseThrow();
+        accessControl.requireSelf(request, entry.getUser().getId());
+        diaryRepository.delete(entry);
         return ResponseEntity.ok().build();
     }
 }

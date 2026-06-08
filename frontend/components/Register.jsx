@@ -1,89 +1,104 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import './App.css';
+import { useNavigate, Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import api from '../src/api/axiosInstance';
+import { useLanguage } from '../src/i18n/LanguageContext';
+import { clearAuthSession } from '../src/authStorage';
 
 export default function Register() {
-    const [formData, setFormData] = useState({
-        username: '',
-        email: '',
-        password: '',
-        confirmPassword: '',
-        role: 'CLIENT'
-    });
+    const { t } = useLanguage();
+    const [formData, setFormData] = useState({ username: '', password: '', role: 'CLIENT', email: '' });
     const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
+    React.useEffect(() => {
+        clearAuthSession();
+    }, []);
 
-    const handleSubmit = async (e) => {
+    const handleRegister = async (e) => {
         e.preventDefault();
-        if (formData.password !== formData.confirmPassword) {
-            alert("Пароли не совпадают!");
-            return;
-        }
-
+        setLoading(true);
         try {
-            const response = await fetch('/api/auth/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    username: formData.username,
-                    email: formData.email,
-                    password: formData.password,
-                    role: formData.role
-                })
-            });
+            const res = await api.post('/api/auth/register', formData);
 
-            if (response.ok) {
-                alert("Регистрация успешна! Теперь войдите.");
+            if (res.status === 200) {
+                toast.success(t('auth_reg_success'));
                 navigate('/login');
             } else {
-                const errorData = await response.json();
-                alert("Ошибка: " + (errorData.error || "Ошибка сервера"));
+                toast.error(t('auth_reg_error'));
             }
         } catch (error) {
-            console.error(error);
-            alert("Сервер недоступен");
+            toast.error(error.response?.data?.error || t('auth_error_connection'));
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
-        <div className="auth-wrapper">
-            <div className="auth-container">
-                <h2>Регистрация</h2>
-                <form onSubmit={handleSubmit}>
+        <div className="auth-page">
+            <div className="auth-card">
+                <div className="auth-logo auth-logo-mark">
+                    <img src="/logo.png" alt="Sau Sana" />
+                </div>
+                <h2 className="auth-title">{t('auth_reg_title')}</h2>
+                <p className="auth-subtitle">{t('auth_reg_sub')}</p>
 
-                    <div style={{display: 'flex', gap: '20px', justifyContent: 'center', marginBottom: '10px'}}>
-                        <label style={{cursor: 'pointer'}}>
-                            <input
-                                type="radio"
-                                name="role"
-                                value="CLIENT"
-                                checked={formData.role === 'CLIENT'}
-                                onChange={handleChange}
-                            /> Я Клиент
-                        </label>
-                        <label style={{cursor: 'pointer'}}>
-                            <input
-                                type="radio"
-                                name="role"
-                                value="PSYCHOLOGIST"
-                                checked={formData.role === 'PSYCHOLOGIST'}
-                                onChange={handleChange}
-                            /> Я Психолог
-                        </label>
+                <form onSubmit={handleRegister}>
+                    <div style={{ marginBottom: 'var(--space-md)' }}>
+                        <label className="input-label">{t('auth_role')}</label>
+                        <select
+                            className="input-field"
+                            value={formData.role}
+                            onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                            style={{ cursor: 'pointer' }}
+                        >
+                            <option value="CLIENT">{t('auth_role_client')}</option>
+                            <option value="PSYCHOLOGIST">{t('auth_role_psych')}</option>
+                        </select>
                     </div>
-
-                    <input type="text" name="username" placeholder="Имя пользователя" onChange={handleChange} required />
-                    <input type="email" name="email" placeholder="Email" onChange={handleChange} required />
-                    <input type="password" name="password" placeholder="Пароль" onChange={handleChange} required />
-                    <input type="password" name="confirmPassword" placeholder="Повторите пароль" onChange={handleChange} required />
-
-                    <button type="submit" className="btn-primary">Создать аккаунт</button>
+                    <div style={{ marginBottom: 'var(--space-md)' }}>
+                        <label className="input-label">{t('auth_username')}</label>
+                        <input
+                            className="input-field"
+                            type="text"
+                            placeholder={t('auth_username_reg_ph')}
+                            value={formData.username}
+                            onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                            required
+                        />
+                    </div>
+                    <div style={{ marginBottom: 'var(--space-md)' }}>
+                        <label className="input-label">Email</label>
+                        <input
+                            className="input-field"
+                            type="email"
+                            placeholder="your@email.com"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            required
+                        />
+                    </div>
+                    <div style={{ marginBottom: 'var(--space-lg)' }}>
+                        <label className="input-label">{t('auth_password')}</label>
+                        <input
+                            className="input-field"
+                            type="password"
+                            placeholder={t('auth_password_reg_ph')}
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            required
+                        />
+                    </div>
+                    <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
+                        {loading ? t('loading') : t('auth_submit_reg')}
+                    </button>
                 </form>
-                <div className="auth-links">
-                    Уже есть аккаунт? <Link to="/login">Войти</Link>
+
+                <div style={{ textAlign: 'center', marginTop: 'var(--space-xl)', fontSize: '14px' }}>
+                    <span style={{ color: 'var(--text-muted)' }}>{t('auth_have_account')}</span>
+                    <Link to="/login" style={{ color: 'var(--accent-primary)', fontWeight: '600' }}>
+                        {t('auth_submit_login')}
+                    </Link>
                 </div>
             </div>
         </div>

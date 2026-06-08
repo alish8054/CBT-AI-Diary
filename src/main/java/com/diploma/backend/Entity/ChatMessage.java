@@ -26,4 +26,7 @@ public class ChatMessage {
     private String content;
 
     private LocalDateTime timestamp;
+
+    @Column(name = "read_by_recipient")
+    private Boolean readByRecipient = false;
 }

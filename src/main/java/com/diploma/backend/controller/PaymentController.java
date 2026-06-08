@@ -1,10 +1,17 @@
 package com.diploma.backend.controller;
 
 import com.diploma.backend.Entity.PaymentTransaction;
+import com.diploma.backend.security.AccessControlService;
 import com.diploma.backend.service.PaymentService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
 
@@ -14,40 +21,28 @@ import java.util.Map;
 public class PaymentController {
 
     private final PaymentService paymentService;
+    private final AccessControlService accessControl;
 
-    // 1. Клиент хочет оплатить -> Создаем заказ
     @PostMapping("/init")
-    public ResponseEntity<?> initPayment(@RequestBody Map<String, Long> payload) {
-        Long userId = payload.get("userId");
-        PaymentTransaction tx = paymentService.createPayment(userId);
-
-        // Возвращаем данные для QR кода
+    public ResponseEntity<?> initPayment(@RequestBody(required = false) Map<String, Long> payload, HttpServletRequest request) {
+        PaymentTransaction tx = paymentService.createPayment(accessControl.currentUserId(request));
         return ResponseEntity.ok(Map.of(
                 "orderId", tx.getOrderId(),
                 "amount", tx.getAmount(),
-                // Генерируем ссылку для QR (визуально)
                 "qrData", "https://kaspi.kz/pay/" + tx.getOrderId()
         ));
     }
 
-    // 2. WEBHOOK (Сюда постучится Kaspi в будущем)
-    // Пока что сюда стучится наша кнопка "Симулировать успех"
     @PostMapping("/webhook/success")
-    public ResponseEntity<?> webhookSuccess(@RequestBody Map<String, String> payload) {
+    public ResponseEntity<?> webhookSuccess(@RequestBody Map<String, String> payload, HttpServletRequest request) {
         String orderId = payload.get("orderId");
-
-        // В будущем здесь будет проверка цифровой подписи (Signature check)
-        // if (!isValidSignature(headers, payload)) return 403;
-
-        paymentService.processSuccessWebhook(orderId);
-
-        return ResponseEntity.ok("OK"); // Банку нужно отвечать просто ОК или XML
+        paymentService.processSuccessWebhook(orderId, accessControl.currentUserId(request));
+        return ResponseEntity.ok("OK");
     }
 
-    // 3. Фронтенд опрашивает этот метод: "Ну что, оплатили?"
     @GetMapping("/check/{orderId}")
-    public ResponseEntity<?> checkStatus(@PathVariable String orderId) {
-        String status = paymentService.checkStatus(orderId);
+    public ResponseEntity<?> checkStatus(@PathVariable String orderId, HttpServletRequest request) {
+        String status = paymentService.checkStatus(orderId, accessControl.currentUserId(request));
         return ResponseEntity.ok(Map.of("status", status));
     }
 }

@@ -1,227 +1,171 @@
 import React, { useState, useEffect } from 'react';
-import { EMOTION_THEMES } from '../src/themes';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import api from '../src/api/axiosInstance';
+import { useLanguage } from '../src/i18n/LanguageContext';
+import { getAuthItem } from '../src/authStorage';
 
 export default function ClientHome() {
     const navigate = useNavigate();
-    const [user, setUser] = useState(() => {
-        try { return JSON.parse(localStorage.getItem('user') || '{}'); } catch (e) { return {}; }
+    const { t } = useLanguage();
+    const userId = getAuthItem('userId');
+    const [userName, setUserName] = useState('');
+
+    const MOOD_OPTIONS = [
+        { key: 'happy', label: t('mood_happy'), emoji: '🌟' },
+        { key: 'joy', label: t('mood_energy'), emoji: '⚡' },
+        { key: 'calm', label: t('mood_calm'), emoji: '🧘' },
+        { key: 'sad', label: t('mood_sad'), emoji: '☁️' },
+        { key: 'annoyed', label: t('mood_annoyed'), emoji: '🔥' }
+    ];
+    
+    
+    const TODAY = new Date().toISOString().split('T')[0];
+    const MOOD_KEY = `mood_${userId}_${TODAY}`;
+    
+    const [selectedMood, setSelectedMood] = useState(() => {
+        return localStorage.getItem(MOOD_KEY);
+    });
+    const [moodSelected, setMoodSelected] = useState(() => {
+        return localStorage.getItem(MOOD_KEY) !== null;
     });
 
-    const [psychologists, setPsychologists] = useState([]);
-    const [moodSelected, setMoodSelected] = useState(false);
-    const [loading, setLoading] = useState(true);
-
-    // Замени этот кусок в ClientHome.jsx
+    const [stats, setStats] = useState({ diaryCount: 0, sleepCount: 0, taskCount: 0 });
 
     useEffect(() => {
-        if (user.id) {
+        if (userId) {
             checkTodayMood();
+            fetchStats();
+            fetchUserName();
         }
-        loadPsychologists();
-    }, [user.id]);
+    }, [userId]);
+
+    const fetchUserName = async () => {
+        try {
+            const res = await api.get(`/api/users/${userId}`);
+            setUserName(res.data.fullName || res.data.username);
+        } catch (e) { console.error(e); }
+    };
 
     const checkTodayMood = async () => {
         try {
-            const res = await fetch(`/api/mood/today/${user.id}`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.mood && data.mood !== "") {
-                    // Если сервер вернул настроение за сегодня - скрываем меню выбора
-                    setMoodSelected(true);
-
-                    // Устанавливаем глобальную тему (как мы делали в App.jsx)
-                    localStorage.setItem(`mood_${user.id}_${new Date().toDateString()}`, data.mood);
-                }
+            const res = await api.get(`/api/mood/today/${userId}`);
+            const data = res.data;
+            if (data.mood && data.mood !== "") {
+                localStorage.setItem(MOOD_KEY, data.mood);
+                setSelectedMood(data.mood);
+                setMoodSelected(true);
             }
         } catch (e) { console.error(e); }
     };
 
+    const fetchStats = async () => {
+        try {
+            const res = await api.get(`/api/dashboard/stats?userId=${userId}`);
+            setStats(res.data);
+        } catch (e) { console.error(e); }
+    };
+
     const handleMoodClick = async (moodKey) => {
-        // Отправляем настроение НА СЕРВЕР
         try {
-            await fetch(`/api/mood/${user.id}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mood: moodKey })
-            });
-
-            // Сохраняем локально для мгновенной смены темы
-            localStorage.setItem(`mood_${user.id}_${new Date().toDateString()}`, moodKey);
+            await api.post(`/api/mood/${userId}`, { mood: moodKey });
+            localStorage.setItem(MOOD_KEY, moodKey);
+            setSelectedMood(moodKey);
             setMoodSelected(true);
-            toast.success("Настроение сохранено");
-            setTimeout(() => window.location.reload(), 500);
-
-        } catch (e) {
-            toast.error("Ошибка сети");
-        }
-    };
-
-    const loadPsychologists = async () => {
-        try {
-            const res = await fetch('/api/users/psychologists');
-            if (res.ok) {
-                const data = await res.json();
-                setPsychologists(data);
-            } else {
-                console.log("Не удалось загрузить список психологов");
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-
-
-    const handleStartChat = (psych) => {
-        localStorage.setItem('chatTarget', JSON.stringify(psych));
-        navigate('/chat');
-        toast.success(`Чат с ${psych.fullName || psych.username} создан!`);
-    };
-
-    const resetMood = () => {
-        const userId = user.id || 'guest';
-        const dateKey = `mood_${userId}_${new Date().toDateString()}`;
-        localStorage.removeItem(dateKey);
-        setMoodSelected(false);
-    };
-
-    const handleSelectPsychologist = async (psychId) => {
-        try {
-            const res = await fetch(`/api/users/${user.id}/select-psychologist/${psychId}`, {
-                method: 'POST'
-            });
-
-            if (res.ok) {
-                const updatedUser = await res.json();
-                localStorage.setItem('user', JSON.stringify(updatedUser));
-                setUser(updatedUser);
-                toast.success("Специалист успешно выбран!");
-            } else {
-                toast.error("Не удалось выбрать специалиста");
-            }
-        } catch (e) {
-            console.error(e);
-            toast.error("Ошибка соединения с сервером");
-        }
+            toast.success(t('mood_saved'));
+        } catch (e) { toast.error(t('mood_error')); }
     };
 
     if (!moodSelected) {
         return (
-            <div className="diary-container" style={{textAlign: 'center', marginTop: '50px'}}>
-                <h1>Привет, {user.fullName || user.username || 'Друг'}! 👋</h1>
-                <p style={{marginBottom: '30px', color: '#666'}}>Какое настроение преобладает сегодня?</p>
-                <div style={{display: 'flex', flexWrap: 'wrap', gap: '15px', justifyContent: 'center'}}>
-                    {Object.keys(EMOTION_THEMES).map((key) => (
-                        <button key={key} onClick={() => handleMoodClick(key)} style={{padding: '15px 30px', borderRadius: '50px', border: '1px solid #ccc', cursor: 'pointer', background: 'white'}}>
-                            {EMOTION_THEMES[key].label}
-                        </button>
+            <div style={{ maxWidth: '800px', margin: '4rem auto', textAlign: 'center' }}>
+                <h1 style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>{t('home_morning')}, {userName}! 👋</h1>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', marginBottom: '3.5rem' }}>{t('home_mood_now')}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '1.5rem' }}>
+                    {MOOD_OPTIONS.map((mood) => (
+                        <div key={mood.key} className="card" style={{ cursor: 'pointer', padding: '2rem 1rem', textAlign: 'center' }} onClick={() => handleMoodClick(mood.key)}>
+                            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>{mood.emoji}</div>
+                            <div style={{ fontWeight: '700', color: 'var(--text-primary)' }}>{mood.label}</div>
+                        </div>
                     ))}
                 </div>
             </div>
         );
     }
 
+    const currentMoodObj = MOOD_OPTIONS.find(m => m.key === selectedMood);
+
     return (
-        <div className="diary-container">
-            <div style={{textAlign: 'center', marginBottom: '40px'}}>
-                <h2>Добро пожаловать!</h2>
-                <button onClick={resetMood} style={{border: 'none', background: 'transparent', color: '#667eea', cursor: 'pointer', textDecoration: 'underline'}}>
-                    Изменить настроение
-                </button>
+        <div>
+            <header style={{ marginBottom: 'var(--space-xl)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px' }}>
+                <div>
+                    <h1>{t('home_greeting')}, {userName} 👋</h1>
+                    <p style={{ color: 'var(--text-muted)' }}>{t('home_subtitle')} — {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+                </div>
+                {currentMoodObj && (
+                    <div className="card" style={{ padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <span style={{ fontSize: '24px' }}>{currentMoodObj.emoji}</span>
+                        <div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{t('home_mood_your')}</div>
+                            <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--text-primary)' }}>{currentMoodObj.label}</div>
+                        </div>
+                        <button 
+                            onClick={() => setMoodSelected(false)}
+                            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px', marginLeft: '10px' }}
+                        >
+                            {t('home_mood_change')}
+                        </button>
+                    </div>
+                )}
+            </header>
+
+            <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '14px', marginBottom: 'var(--space-xl)' }}>
+                <div className="card" style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--color-diary)' }}>{stats.diaryCount}</div>
+                    <div className="input-label" style={{ marginBottom: 0 }}>{t('home_stat_diary')}</div>
+                </div>
+                <div className="card" style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--color-dreams)' }}>{stats.sleepCount}</div>
+                    <div className="input-label" style={{ marginBottom: 0 }}>{t('home_stat_dreams')}</div>
+                </div>
+                <div className="card" style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--color-tasks)' }}>{stats.taskCount}</div>
+                    <div className="input-label" style={{ marginBottom: 0 }}>{t('home_stat_tasks')}</div>
+                </div>
             </div>
 
-            <h3 style={{color: '#2c3e50', marginBottom: '20px'}}>Наши специалисты</h3>
-
-            {loading ? (
-                <p style={{textAlign: 'center'}}>Загрузка специалистов...</p>
-            ) : (
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px', marginBottom: '40px'}}>
-                    {psychologists.length > 0 ? (
-                        psychologists.map(psych => {
-                            // Проверяем, является ли этот психолог нашим
-                            const isMyPsychologist = user.psychologist && user.psychologist.id === psych.id;
-
-                            return (
-                                <div key={psych.id} style={{
-                                    background: 'white',
-                                    border: isMyPsychologist ? '2px solid #10b981' : '1px solid #eee',
-                                    borderRadius: '16px',
-                                    padding: '20px',
-                                    textAlign: 'center',
-                                    boxShadow: '0 4px 10px rgba(0,0,0,0.05)',
-                                    position: 'relative' // Для бейджа
-                                }}>
-
-                                    {/* БЕЙДЖ "ВАШ ВЫБОР" */}
-                                    {isMyPsychologist && (
-                                        <div style={{position: 'absolute', top: '-10px', right: '-10px', background: '#10b981', color: 'white', padding: '5px 10px', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 'bold'}}>
-                                            Ваш выбор
-                                        </div>
-                                    )}
-
-                                    <div style={{
-                                        width: '80px', height: '80px', borderRadius: '50%', margin: '0 auto 15px',
-                                        background: '#e2e8f0', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                                    }}>
-                                        {psych.photoUrl ? (
-                                            <img
-                                                src={psych.photoUrl && psych.photoUrl.startsWith('http') ? psych.photoUrl : `http://localhost:8080${psych.photoUrl}`}
-                                                alt={psych.username}
-                                                style={{width: '100%', height: '100%', objectFit: 'cover'}}
-                                            />
-                                        ) : (
-                                            <span style={{fontSize: '1.5rem', fontWeight: 'bold', color: '#64748b'}}>
-                                                {(psych.fullName || psych.username).charAt(0).toUpperCase()}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <h4 style={{margin: '0 0 5px 0'}}>{psych.fullName || psych.username}</h4>
-                                    <p style={{fontSize: '0.9rem', color: '#666', marginBottom: '15px'}}>
-                                        {psych.specialization || "Психолог"}
-                                    </p>
-
-                                    {/* КНОПКИ ДЕЙСТВИЙ */}
-                                    <div style={{display: 'flex', flexDirection: 'column', gap: '10px'}}>
-                                        {!isMyPsychologist && (
-                                            <button
-                                                onClick={() => handleSelectPsychologist(psych.id)}
-                                                className="btn-secondary"
-                                                style={{width: '100%', padding: '10px'}}
-                                            >
-                                                🤝 Выбрать
-                                            </button>
-                                        )}
-                                        <button
-                                            onClick={() => handleStartChat(psych)}
-                                            className="btn-primary"
-                                            style={{width: '100%', padding: '10px'}}
-                                        >
-                                            💬 Написать
-                                        </button>
-                                    </div>
-                                </div>
-                            );
-                        })
-                    ) : (
-                        <div style={{gridColumn: '1 / -1', textAlign: 'center', padding: '30px', color: '#999'}}>
-                            <p>Психологи пока не зарегистрированы.</p>
-                        </div>
-                    )}
+            <div className="two-col-layout" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 'var(--space-lg)' }}>
+                <div className="card">
+                    <h2 style={{ marginBottom: 'var(--space-sm)' }}>📖 {t('home_diary_title')}</h2>
+                    <p style={{ color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)' }}>
+                        {t('home_diary_desc')}
+                    </p>
+                    <button className="btn-primary" onClick={() => navigate('/diary')}>{t('home_diary_btn')}</button>
                 </div>
-            )}
 
-            <div style={{display: 'flex', gap: '20px', flexWrap: 'wrap'}}>
-                <div onClick={() => window.location.href='/diary'} style={{cursor: 'pointer', flex: 1, padding: '20px', background: '#f8fafc', borderRadius: '12px', textAlign: 'center'}}>
-                    <div style={{fontSize: '2rem'}}>📖</div>
-                    <h3>Дневник</h3>
+                <div className="card" style={{ background: 'var(--bg-surface-2)' }}>
+                    <h3 style={{ marginBottom: 'var(--space-sm)' }}>🎯 {t('home_tasks_title')}</h3>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t('home_tasks_desc')}</p>
+                    <button className="btn-primary" style={{ marginTop: 'var(--space-md)', width: '100%' }} onClick={() => navigate('/client-assignments')}>{t('home_tasks_btn')}</button>
                 </div>
-                <div onClick={() => window.location.href='/dreams'} style={{cursor: 'pointer', flex: 1, padding: '20px', background: '#f8fafc', borderRadius: '12px', textAlign: 'center'}}>
-                    <div style={{fontSize: '2rem'}}>🌙</div>
-                    <h3>Сны</h3>
+            </div>
+
+            <div className="cards-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-lg)', marginTop: 'var(--space-lg)' }}>
+                <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                    <div style={{ fontSize: '2.5rem' }}>✨</div>
+                    <div>
+                        <h3 style={{ margin: 0 }}>{t('home_world_title')}</h3>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 12px' }}>{t('home_world_desc')}</p>
+                        <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => navigate('/inner-world')}>{t('home_world_btn')}</button>
+                    </div>
+                </div>
+                <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                    <div style={{ fontSize: '2.5rem' }}>🌙</div>
+                    <div>
+                        <h3 style={{ margin: 0 }}>{t('home_dreams_title')}</h3>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '4px 0 12px' }}>{t('home_dreams_desc')}</p>
+                        <button className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }} onClick={() => navigate('/dreams')}>{t('home_dreams_btn')}</button>
+                    </div>
                 </div>
             </div>
         </div>

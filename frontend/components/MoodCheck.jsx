@@ -1,45 +1,29 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
+import api from '../src/api/axiosInstance';
+import { getAuthItem, getAuthUser } from '../src/authStorage';
 
 const MOODS = [
-    "Грустно", "Радостно", "Подавлено", "Восторженно",
-    "Разочарованно", "Удивлённо", "Депрессивно",
-    "Удовлетворённо", "Раздраженно", "Счастливо", "Виновато"
+    'sad', 'happy', 'down', 'excited', 'disappointed',
+    'surprised', 'depressed', 'calm', 'annoyed', 'guilty'
 ];
 
 export default function MoodCheck() {
     const [selectedMood, setSelectedMood] = useState(null);
     const navigate = useNavigate();
-    const username = localStorage.getItem('username');
-    const userId = localStorage.getItem('userId');
+    const username = getAuthUser().username;
+    const userId = getAuthItem('userId');
 
     const handleConfirm = async () => {
-        if (!selectedMood) return;
+        if (!selectedMood || !userId) return;
 
         try {
-            const res = await fetch('/api/mood', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId, mood: selectedMood })
-            });
-
-
-            if (res.ok) {
-                localStorage.setItem('todayMood', selectedMood);
-                navigate('/client-home');
-            }
-
-            else if (res.status === 400) {
-
-                localStorage.setItem('todayMood', selectedMood);
-                navigate('/client-home');
-            }
-            else {
-                alert("Произошла ошибка сервера");
-            }
+            await api.post(`/api/mood/${userId}`, { mood: selectedMood });
+            sessionStorage.setItem('todayMood', selectedMood);
+            navigate('/client-home');
         } catch (error) {
-            console.error("Ошибка сети:", error);
+            console.error('Mood save failed:', error);
             navigate('/client-home');
         }
     };
@@ -47,8 +31,8 @@ export default function MoodCheck() {
     return (
         <div className="welcome-wrapper">
             <div className="welcome-container" style={{maxWidth: '800px'}}>
-                <h1>Здравствуйте, {username}</h1>
-                <h2 style={{fontWeight: 'normal', color: '#666'}}>Как вы себя чувствуете сегодня?</h2>
+                <h1>Hello, {username}</h1>
+                <h2 style={{fontWeight: 'normal', color: '#666'}}>How do you feel today?</h2>
 
                 <div className="mood-grid">
                     {MOODS.map(mood => (
@@ -68,7 +52,7 @@ export default function MoodCheck() {
                     onClick={handleConfirm}
                     style={{marginTop: '20px', width: '200px'}}
                 >
-                    Подтвердить
+                    Confirm
                 </button>
             </div>
         </div>

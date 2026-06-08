@@ -5,7 +5,9 @@ import com.diploma.backend.Entity.User;
 import com.diploma.backend.repository.PaymentRepository;
 import com.diploma.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -18,38 +20,34 @@ public class PaymentService {
     private final PaymentRepository paymentRepository;
     private final UserRepository userRepository;
 
-    // 1. Создание заказа (То, что происходит, когда клиент жмет "Оплатить")
     public PaymentTransaction createPayment(Long userId) {
+        userRepository.findById(userId).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         PaymentTransaction tx = new PaymentTransaction();
         tx.setUserId(userId);
-        tx.setAmount(2000.00); // 2000 тенге
+        tx.setAmount(2000.00);
         tx.setStatus("PENDING");
         tx.setProvider("KASPI_SIMULATION");
-        tx.setOrderId(UUID.randomUUID().toString()); // Уникальный номер заказа
-
+        tx.setOrderId(UUID.randomUUID().toString());
         return paymentRepository.save(tx);
     }
 
-    // 2. Обработка успешной оплаты (Webhook)
-    // Этот метод будет вызываться Банком (или нашей симуляцией)
-    public void processSuccessWebhook(String orderId) {
+    public void processSuccessWebhook(String orderId, Long currentUserId) {
         PaymentTransaction tx = paymentRepository.findByOrderId(orderId)
-                .orElseThrow(() -> new RuntimeException("Заказ не найден"));
-
-        if ("SUCCESS".equals(tx.getStatus())) {
-            return; // Уже оплачено, защиту от дублей
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        if (!currentUserId.equals(tx.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This order belongs to another user");
         }
 
-        // 1. Обновляем статус транзакции
+        if ("SUCCESS".equals(tx.getStatus())) {
+            return;
+        }
+
         tx.setStatus("SUCCESS");
         tx.setPaidAt(LocalDateTime.now());
         paymentRepository.save(tx);
 
-        // 2. Продлеваем подписку пользователю
         User user = userRepository.findById(tx.getUserId()).orElseThrow();
         LocalDate now = LocalDate.now();
-
-        // Логика продления
         if (user.getSubscriptionEndsAt() != null && user.getSubscriptionEndsAt().isAfter(now)) {
             user.setSubscriptionEndsAt(user.getSubscriptionEndsAt().plusDays(30));
         } else {
@@ -58,9 +56,9 @@ public class PaymentService {
         userRepository.save(user);
     }
 
-    // Проверка статуса (для фронтенда, который ждет оплаты)
-    public String checkStatus(String orderId) {
+    public String checkStatus(String orderId, Long currentUserId) {
         return paymentRepository.findByOrderId(orderId)
+                .filter(tx -> currentUserId.equals(tx.getUserId()))
                 .map(PaymentTransaction::getStatus)
                 .orElse("NOT_FOUND");
     }

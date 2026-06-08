@@ -49,3 +49,9 @@ data/
 
 ### Browser test profiles ###
 .tmp-chrome-profile/
+
+### Environment variables ###
+.env
+.env.*
+*.env
+!*.env.example

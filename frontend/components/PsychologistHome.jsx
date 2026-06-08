@@ -1,67 +1,97 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import './App.css';
 import PsychologistCalendar from './PsychologistCalendar';
+import api from '../src/api/axiosInstance';
+import API_URL from '../src/api';
+import { useLanguage } from '../src/i18n/LanguageContext';
+import { getAuthItem, getAuthUser, getPhotoSrc } from '../src/authStorage';
 
 export default function PsychologistHome() {
+    const { t } = useLanguage();
     const [clients, setClients] = useState([]);
-
-    // Получаем данные из объекта user
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const username = user.fullName || user.username || 'Доктор';
+    const user = getAuthUser();
+    const userId = getAuthItem('userId');
+    const photoSrc = (client) => getPhotoSrc(client, API_URL);
 
     useEffect(() => {
-        if (user.id) {
-            // Загружаем только клиентов этого психолога
-            fetch(`/api/psychologist/clients/my?psychologistId=${user.id}`)
-                .then(res => res.json())
-                .then(data => setClients(data.slice(0, 5)))
-                .catch(err => console.error("Ошибка загрузки клиентов:", err));
+        if (userId) {
+            api.get(`/api/psychologist/clients/my?psychologistId=${userId}`)
+                .then(res => {
+                    setClients(res.data.slice(0, 5));
+                })
+                .catch(e => {
+                    console.error('Error fetching recent clients:', e);
+                    setClients([]);
+                });
         }
-    }, [user.id]);
+    }, [userId]);
 
     return (
-        <div className="diary-container" style={{maxWidth: '100%'}}>
-            <div style={{marginBottom: '20px'}}>
-                <h1>Здравствуйте, {username}! 👋</h1>
-                <div style={{marginBottom: '40px'}}>
-                    <h2>Мое расписание</h2>
-                    <PsychologistCalendar/>
-                </div>
-            </div>
+        <div className="fade-in">
+            <header style={{ marginBottom: 'var(--space-xl)' }}>
+                <h1>{t('home_greeting')}, {user.fullName || t('profile_psychologist')}!</h1>
+                <p style={{ color: 'var(--text-muted)' }}>
+                    {t('home_subtitle')}. {t('home_stat_tasks')}: {clients.length}.
+                </p>
+            </header>
 
-            <div style={{marginTop: '40px'}}>
-                <h3>Ваши последние клиенты</h3>
-                <div className="entry-list">
-                    {clients.length === 0 && <p style={{color: '#999'}}>У вас пока нет прикрепленных клиентов.</p>}
-                    {clients.map(client => (
-                        <div key={client.id} className="entry-item"
-                             style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                            <div style={{display: 'flex', alignItems: 'center', gap: '15px'}}>
-                                <div className="avatar-circle" style={{
-                                    width: '50px', height: '50px', borderRadius: '50%',
-                                    background: '#667eea', overflow: 'hidden',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white'
+            <div className="two-col-layout">
+                {}
+                <section>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+                        <h2>{t('clients_recent')}</h2>
+                        <Link to="/psychologist/clients" style={{ color: 'var(--accent-primary)', fontWeight: '600', fontSize: '14px' }}>
+                            {t('clients_all')} →
+                        </Link>
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+                        {clients.map(client => (
+                            <div key={client.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
+                                <div style={{
+                                    width: '40px',
+                                    height: '40px',
+                                    borderRadius: 'var(--radius-md)',
+                                    background: 'var(--bg-surface-2)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '18px',
+                                    overflow: 'hidden',
+                                    border: '1px solid var(--border-subtle)'
                                 }}>
-                                    {client.photoUrl ? (
-                                        <img src={`http://localhost:8080${client.photoUrl}`} style={{width:'100%', height:'100%', objectFit:'cover'}} />
+                                    {photoSrc(client) ? (
+                                        <img src={photoSrc(client)} alt="client" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                     ) : (
-                                        (client.fullName || client.username).charAt(0).toUpperCase()
+                                        <span>??</span>
                                     )}
                                 </div>
-                                <div>
-                                    <strong>{client.fullName || client.username}</strong> <br/>
-                                    <small style={{color: '#777'}}>{client.email}</small>
+                                <div style={{ flex: 1 }}>
+                                    <h4 style={{ margin: 0, fontSize: '15px' }}>{client.fullName || client.username}</h4>
+                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                                        {t('clients_last_activity')}: {t('clients_yesterday')}
+                                    </p>
                                 </div>
+                                <Link to={`/psychologist/client/${client.id}`} className="btn-secondary" style={{ padding: '6px 14px', fontSize: '12px' }}>
+                                    {t('clients_open_card')}
+                                </Link>
                             </div>
-                            <Link to={`/psychologist/client/${client.id}`}>
-                                <button className="btn-secondary" style={{padding: '8px 15px', fontSize: '0.85rem'}}>
-                                    Открыть карту
-                                </button>
-                            </Link>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                        {clients.length === 0 && (
+                            <div className="card" style={{ textAlign: 'center', padding: 'var(--space-xl)', border: '1px dashed var(--border-subtle)' }}>
+                                <p style={{ color: 'var(--text-muted)', margin: 0 }}>{t('clients_empty')}</p>
+                            </div>
+                        )}
+                    </div>
+                </section>
+
+                {}
+                <section>
+                    <h2 style={{ marginBottom: 'var(--space-md)' }}>{t('nav_diary')}</h2>
+                    <div className="card" style={{ padding: 'var(--space-md)' }}>
+                        <PsychologistCalendar />
+                    </div>
+                </section>
             </div>
         </div>
     );

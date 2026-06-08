@@ -1,165 +1,132 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
+import api from '../src/api/axiosInstance';
+import { useLanguage } from '../src/i18n/LanguageContext';
+import { getAuthItem } from '../src/authStorage';
 
-const ClientAssignments = () => {
+export default function ClientAssignments() {
+    const { t } = useLanguage();
     const [assignments, setAssignments] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    // Состояние для активного задания (которое сейчас делаем)
-    const [activeTask, setActiveTask] = useState(null);
     const [answer, setAnswer] = useState('');
+    const [selectedId, setSelectedId] = useState(null);
+    const [completingId, setCompletingId] = useState(null);
+    const userId = getAuthItem('userId');
 
     useEffect(() => {
-        loadAssignments();
-    }, []);
+        if (userId) fetchAssignments();
+    }, [userId]);
 
-    const loadAssignments = async () => {
+    const fetchAssignments = async () => {
         try {
-            const user = JSON.parse(localStorage.getItem('user') || '{}');
-            if (!user.id) {
-                setLoading(false);
-                return;
-            }
+            const res = await api.get(`/api/assignments/client/${userId}`);
+            setAssignments(Array.isArray(res.data) ? res.data : []);
+        } catch (e) {
+            console.error('Error fetching assignments:', e);
+            toast.error(t('error_generic'));
+        }
+    };
 
-            const response = await fetch(`/api/assignments/user/${user.id}`);
+    const isCompleted = (item) => Boolean(item.completed ?? item.isCompleted);
 
-            if (response.ok) {
-                const data = await response.json();
-                setAssignments(data);
-            } else {
-                setAssignments([]);
-            }
+    const handleComplete = async (id) => {
+        if (!answer.trim()) return toast.error(t('error_generic'));
 
-        } catch (error) {
-            console.error("Ошибка загрузки:", error);
-            setAssignments([]);
+        setCompletingId(id);
+        try {
+            await api.put(`/api/assignments/${id}/complete`, { answer: answer.trim() });
+            setSelectedId(null);
+            setAnswer('');
+            await fetchAssignments();
+            toast.success(t('tasks_done'));
+        } catch (e) {
+            console.error('Error completing assignment:', e);
+            toast.error(t('error_generic'));
         } finally {
-            setLoading(false);
+            setCompletingId(null);
         }
     };
-
-    // Нажатие кнопки "Начать"
-    const handleStart = (task) => {
-        setActiveTask(task);
-        setAnswer(''); // Очищаем поле ответа
-    };
-
-    // Нажатие кнопки "Отмена"
-    const handleCancel = () => {
-        setActiveTask(null);
-        setAnswer('');
-    };
-
-    // Отправка ответа на сервер
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        if (!answer.trim()) {
-            toast.error("Напишите ответ или отчет о выполнении!");
-            return;
-        }
-
-        try {
-            // Эндпоинт берем из твоего AssignmentController: @PutMapping("/{id}/complete")
-            const res = await fetch(`/api/assignments/${activeTask.id}/complete`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ answer: answer }) // Ключ "answer" ожидается на бэкенде
-            });
-
-            if (res.ok) {
-                toast.success("Задание выполнено! Отлично!");
-                setActiveTask(null);
-                loadAssignments(); // Обновляем список, чтобы увидеть зеленую галочку
-            } else {
-                toast.error("Ошибка отправки ответа");
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error("Ошибка сети");
-        }
-    };
-
-    if (loading) return <div className="diary-container">Загрузка...</div>;
 
     return (
-        <div className="diary-container" style={{maxWidth: '800px'}}>
-            <h1 style={{textAlign: 'center', marginBottom: '30px', color: '#2c3e50'}}>Ваши Задания</h1>
+        <div style={{ maxWidth: '850px', margin: '0 auto' }}>
+            <header style={{ marginBottom: 'var(--space-xl)' }}>
+                <h1>{t('assignments_program')}</h1>
+                <p style={{ color: 'var(--text-muted)' }}>{t('home_tasks_desc')}</p>
+            </header>
 
-            {/* РЕЖИМ ВЫПОЛНЕНИЯ ЗАДАНИЯ */}
-            {activeTask ? (
-                <div className="entry-item" style={{background: '#f0f9ff', border: '2px solid #667eea'}}>
-                    <button onClick={handleCancel} style={{float: 'right', background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '1.2rem'}}>✖</button>
-                    <h2 style={{marginTop: 0}}>{activeTask.title}</h2>
-                    <p style={{background: 'white', padding: '15px', borderRadius: '8px', fontStyle: 'italic', borderLeft: '4px solid #ddd'}}>
-                        {activeTask.description}
-                    </p>
-
-                    <form onSubmit={handleSubmit} style={{marginTop: '20px'}}>
-                        <label style={{fontWeight: 'bold', display: 'block', marginBottom: '10px'}}>Ваш отчет / Ответ:</label>
-                        <textarea
-                            value={answer}
-                            onChange={(e) => setAnswer(e.target.value)}
-                            placeholder="Напишите, как прошло выполнение задания, или ответьте на вопросы..."
-                            style={{width: '100%', height: '150px', padding: '10px', borderRadius: '8px', border: '1px solid #ccc', marginBottom: '15px'}}
-                            required
-                        />
-                        <div style={{display: 'flex', gap: '10px'}}>
-                            <button type="submit" className="btn-primary">✅ Отправить на проверку</button>
-                            <button type="button" onClick={handleCancel} className="btn-secondary">Отмена</button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                {assignments.map(item => (
+                    <div key={item.id} className="card" style={{ 
+                        borderLeft: isCompleted(item) ? '4px solid var(--color-world)' : '4px solid var(--color-tasks)',
+                        opacity: isCompleted(item) ? 0.8 : 1
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-md)' }}>
+                            <span className={`badge ${isCompleted(item) ? 'badge-emerald' : 'badge-amber'}`}>
+                                {isCompleted(item) ? t('tasks_done') : t('tasks_active')}
+                            </span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                {t('chat_psychologist')}: <span style={{ color: 'var(--text-accent)' }}>{item.psychologist.fullName || '...'}</span>
+                            </span>
                         </div>
-                    </form>
-                </div>
-            ) : (
-                // СПИСОК ЗАДАНИЙ
-                <div className="assignments-list">
-                    {assignments.length > 0 ? (
-                        assignments.map((task) => (
-                            <div key={task.id} className="entry-item" style={{
-                                borderLeft: task.completed ? '5px solid #48bb78' : '5px solid #667eea',
-                                display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px'
+
+                        <h3 style={{ marginBottom: 'var(--space-sm)', textDecoration: isCompleted(item) ? 'line-through' : 'none' }}>
+                            {item.title}
+                        </h3>
+                        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: 'var(--space-md)' }}>
+                            {item.description}
+                        </p>
+
+                        {!isCompleted(item) && selectedId !== item.id && (
+                            <button className="btn-primary" style={{ background: 'linear-gradient(135deg, #6ee7b7, #34d399)' }} onClick={() => {
+                                setSelectedId(item.id);
+                                setAnswer('');
                             }}>
-                                <div style={{flex: 1}}>
-                                    <h3 style={{margin: '0 0 5px 0', textDecoration: task.completed ? 'line-through' : 'none', color: task.completed ? '#888' : '#000'}}>
-                                        {task.title}
-                                    </h3>
-                                    <p style={{margin: 0, color: '#666', fontSize: '0.9rem'}}>{task.description}</p>
+                                {t('home_tasks_btn')}
+                            </button>
+                        )}
 
-                                    {/* Если есть ответ клиента, показываем его */}
-                                    {task.clientAnswer && (
-                                        <div style={{marginTop: '10px', fontSize: '0.85rem', color: '#48bb78'}}>
-                                            <strong>Ваш ответ:</strong> {task.clientAnswer}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div>
-                                    {task.completed ? (
-                                        <span style={{color: '#48bb78', fontWeight: 'bold', padding: '5px 10px', background: '#d1fae5', borderRadius: '15px'}}>
-                                            Выполнено ✅
-                                        </span>
-                                    ) : (
-                                        <button
-                                            className="btn-primary"
-                                            style={{padding: '8px 20px', fontSize: '0.9rem'}}
-                                            onClick={() => handleStart(task)} // ВОТ ТУТ МЫ ДОБАВИЛИ ОБРАБОТЧИК
-                                        >
-                                            Начать
-                                        </button>
-                                    )}
+                        {selectedId === item.id && (
+                            <div style={{ marginTop: 'var(--space-md)', background: 'var(--bg-surface-2)', padding: 'var(--space-md)', borderRadius: 'var(--radius-md)' }}>
+                                <label className="input-label">{t('assignments_client_answer')}</label>
+                                <textarea 
+                                    className="input-field"
+                                    placeholder="..." 
+                                    value={answer} 
+                                    onChange={e => setAnswer(e.target.value)}
+                                    style={{ height: '120px', marginBottom: 'var(--space-md)', resize: 'none' }}
+                                />
+                                <div style={{ display: 'flex', gap: '10px' }}>
+                                    <button
+                                        onClick={() => handleComplete(item.id)}
+                                        className="btn-primary"
+                                        disabled={completingId === item.id}
+                                        style={{ background: 'linear-gradient(135deg, #6ee7b7, #34d399)' }}
+                                    >
+                                        {completingId === item.id ? t('loading') : t('profile_save')}
+                                    </button>
+                                    <button onClick={() => {
+                                        setSelectedId(null);
+                                        setAnswer('');
+                                    }} className="btn-secondary">{t('cancel')}</button>
                                 </div>
                             </div>
-                        ))
-                    ) : (
-                        <div style={{textAlign: 'center', padding: '60px', color: '#a0aec0'}}>
-                            <div style={{fontSize: '4rem', marginBottom: '10px'}}>📝</div>
-                            <h3>Заданий пока нет</h3>
-                            <p>Ваш психолог еще не назначил вам упражнения.</p>
-                        </div>
-                    )}
-                </div>
-            )}
+                        )}
+
+                        {isCompleted(item) && (
+                            <div style={{ marginTop: 'var(--space-md)', paddingTop: 'var(--space-md)', borderTop: '1px solid var(--border-subtle)' }}>
+                                <div className="input-label">{t('assignments_client_answer')}:</div>
+                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontStyle: 'italic', fontSize: '0.9rem' }}>{item.clientAnswer}</p>
+                            </div>
+                        )}
+                    </div>
+                ))}
+                
+                {assignments.length === 0 && (
+                    <div className="card" style={{ textAlign: 'center', padding: 'var(--space-2xl)', border: '2px dashed var(--border-subtle)' }}>
+                        <div style={{ fontSize: '40px', marginBottom: 'var(--space-sm)' }}>🎯</div>
+                        <p style={{ color: 'var(--text-muted)' }}>{t('assignments_empty')}</p>
+                    </div>
+                )}
+            </div>
         </div>
     );
-};
-
-export default ClientAssignments;
+}

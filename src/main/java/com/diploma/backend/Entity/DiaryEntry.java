@@ -18,9 +18,6 @@ public class DiaryEntry {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
-    @Column(columnDefinition = "TEXT")
-    private String aiAnalysis;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     @JsonIgnore

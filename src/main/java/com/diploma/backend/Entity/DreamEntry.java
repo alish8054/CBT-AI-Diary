@@ -16,9 +16,6 @@ public class DreamEntry {
     @Column(columnDefinition = "TEXT")
     private String text;
 
-    @Column(columnDefinition = "TEXT")
-    private String interpretation;
-
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @ManyToOne(fetch = FetchType.LAZY)

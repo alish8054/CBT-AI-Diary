@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './App.css';
+import { clearAuthSession, getAuthItem } from '../src/authStorage';
+import api from '../src/api/axiosInstance';
 
 export default function PsychologistDashboard() {
     const [clients, setClients] = useState([]);
     const navigate = useNavigate();
 
     useEffect(() => {
-        const role = localStorage.getItem('role');
+        const role = getAuthItem('userRole');
         if (role !== 'PSYCHOLOGIST') {
             navigate('/');
             return;
@@ -17,18 +19,15 @@ export default function PsychologistDashboard() {
 
     const fetchClients = async () => {
         try {
-            const res = await fetch('/api/psychologist/clients');
-            if (res.ok) {
-                const data = await res.json();
-                setClients(data);
-            }
+            const res = await api.get('/api/psychologist/clients/my');
+            setClients(res.data);
         } catch (error) {
             console.error("Ошибка:", error);
         }
     };
 
     const handleLogout = () => {
-        localStorage.clear();
+        clearAuthSession();
         navigate('/');
     };
 

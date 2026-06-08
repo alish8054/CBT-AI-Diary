@@ -1,13 +1,13 @@
 import React, { useEffect, useRef } from 'react';
 import Phaser from 'phaser';
 import MainScene from '../src/game/MainScene';
-import toast from 'react-hot-toast'; // Обязательно импортируем тосты
+import { useLanguage } from '../src/i18n/LanguageContext';
 
-export default function PhaserGame() {
+export default function PhaserGame({ onExit }) {
     const gameRef = useRef(null);
+    const { t } = useLanguage();
 
     useEffect(() => {
-        // Конфигурация движка
         const config = {
             type: Phaser.AUTO,
             width: 800,
@@ -20,42 +20,36 @@ export default function PhaserGame() {
             scene: [MainScene]
         };
 
-        const game = new Phaser.Game(config);
-        gameRef.current = game;
+        gameRef.current = new Phaser.Game(config);
 
-        // ЛОВИМ СИГНАЛЫ ИЗ ИГРЫ
-        const handleWeedPulled = () => {
-            // Массив поддерживающих фраз
-            const affirmations = [
-                "С каждым убранным сорняком становится легче 🌱",
-                "Отличная работа! Вы расчищаете место для нового ☀️",
-                "Маленький шаг к спокойствию сделан 🧘‍♂️",
-                "Внутренний сад становится чище ✨"
-            ];
-            const randomMsg = affirmations[Math.floor(Math.random() * affirmations.length)];
-            toast.success(randomMsg, { duration: 3000, icon: '🌻' });
-        };
-
-        // Подписываемся на событие
-        window.addEventListener('weed-pulled', handleWeedPulled);
-
-        // Очистка при закрытии окна
         return () => {
-            if (gameRef.current) gameRef.current.destroy(true);
-            window.removeEventListener('weed-pulled', handleWeedPulled);
+            if (gameRef.current) {
+                gameRef.current.destroy(true);
+            }
         };
     }, []);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: '10px' }}>
-            <p style={{color: '#64748b', marginBottom: '10px'}}>
-                Управление: <b>WASD</b> или <b>Стрелочки</b>. Очистка сорняков: подойдите и нажмите <b>Пробел</b>.
-            </p>
-            <div
-                id="phaser-container"
-                style={{ borderRadius: '12px', overflow: 'hidden', border: '4px solid #10b981', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}
-            >
+        <div className="animate-in phaser-game-wrapper" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '80vh', padding: 'var(--space-md)' }}>
+            <div className="glass-card" style={{ padding: '1.5rem', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', width: '100%', maxWidth: '800px', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
+                <div>
+                    <h3 style={{ margin: 0 }}>{t('world_garden_title')}</h3>
+                    <small style={{ color: 'var(--text-muted)' }}>{t('world_controls_hint')}</small>
+                </div>
+                <button className="btn-secondary" onClick={onExit} style={{ padding: '8px 20px' }}>{t('world_exit_btn')}</button>
             </div>
+
+            <div 
+                id="phaser-container" 
+                style={{ 
+                    borderRadius: '24px', 
+                    overflow: 'hidden', 
+                    boxShadow: 'var(--shadow-lg)',
+                    border: '8px solid var(--bg-surface)',
+                    maxWidth: '100%',
+                    height: 'auto'
+                }}
+            />
         </div>
     );
 }

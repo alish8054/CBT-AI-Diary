@@ -1,284 +1,323 @@
-import React, { useState, useEffect, useRef } from 'react';
-import toast from 'react-hot-toast';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
+import api from '../src/api/axiosInstance';
+import API_URL from '../src/api';
+import { useLanguage } from '../src/i18n/LanguageContext';
+import { getAuthItem, getPhotoSrc } from '../src/authStorage';
 
 const Chat = () => {
-    const [chats, setChats] = useState([]);
-    const [selectedChat, setSelectedChat] = useState(null);
+    const { t } = useLanguage();
+    const location = useLocation();
+    const userId = getAuthItem('userId');
+    const userRole = getAuthItem('userRole');
+    const [partner, setPartner] = useState(null);       
+    const [clientList, setClientList] = useState([]);   
+    const [activeClient, setActiveClient] = useState(null); 
+    const [chatId, setChatId] = useState(null);
     const [messages, setMessages] = useState([]);
-    const [newMessage, setNewMessage] = useState('');
-    const [user, setUser] = useState({});
-
-    // Ссылка для авто-скролла вниз
+    const [input, setInput] = useState('');
+    const [loading, setLoading] = useState(true);
+    const [reloadKey, setReloadKey] = useState(0);
+    const [unreadBySender, setUnreadBySender] = useState({});
     const messagesEndRef = useRef(null);
 
-    useEffect(() => {
-        const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-        setUser(storedUser);
+    const chatPartnerId = userRole === 'CLIENT'
+      ? partner?.id
+      : activeClient?.id;
+    const photoSrc = (person) => getPhotoSrc(person, API_URL);
 
-        if (storedUser.id) {
-            initChatSystem(storedUser.id);
-        }
+    const refreshUnreadBySender = useCallback(async () => {
+      if (!userId) return;
+
+      try {
+        const res = await api.get(`/api/chat/unread-by-sender?userId=${userId}`);
+        setUnreadBySender(res.data || {});
+      } catch {
+        setUnreadBySender({});
+      }
+    }, [userId]);
+
+    useEffect(() => {
+      const reloadChatParticipants = () => setReloadKey(key => key + 1);
+      window.addEventListener('psychologistChanged', reloadChatParticipants);
+      window.addEventListener('focus', reloadChatParticipants);
+
+      return () => {
+        window.removeEventListener('psychologistChanged', reloadChatParticipants);
+        window.removeEventListener('focus', reloadChatParticipants);
+      };
     }, []);
 
-    // Авто-скролл к последнему сообщению при обновлении списка
     useEffect(() => {
-        scrollToBottom();
+      refreshUnreadBySender();
+
+      const interval = window.setInterval(refreshUnreadBySender, 5000);
+      window.addEventListener('focus', refreshUnreadBySender);
+      window.addEventListener('chatUnreadChanged', refreshUnreadBySender);
+
+      return () => {
+        window.clearInterval(interval);
+        window.removeEventListener('focus', refreshUnreadBySender);
+        window.removeEventListener('chatUnreadChanged', refreshUnreadBySender);
+      };
+    }, [refreshUnreadBySender]);
+
+    useEffect(() => {
+      if (!userId) return;
+      setLoading(true);
+
+      const loadParticipants = async () => {
+        if (userRole === 'CLIENT') {
+          const res = await api.get(`/api/users/${userId}`);
+          setPartner(res.data?.psychologist || null);
+          return;
+        }
+
+        const res = await api.get(`/api/psychologist/clients/my?psychologistId=${userId}`);
+        const clients = Array.isArray(res.data) ? res.data : [];
+        setClientList(clients);
+        setActiveClient(current =>
+          clients.find(client => client.id === current?.id) || clients[0] || null
+        );
+      };
+
+      loadParticipants()
+        .catch(err => {
+          console.error(err);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }, [userId, userRole, location.pathname, reloadKey]);
+
+    useEffect(() => {
+      if (!chatPartnerId || !userId) {
+        setChatId(null);
+        setMessages([]);
+        return;
+      }
+
+      let cancelled = false;
+      let poll;
+
+      const fetchHistory = async () => {
+        try {
+          const chatRes = await api.post(`/api/chat/create?userId=${userId}&targetId=${chatPartnerId}`);
+          if (cancelled) return;
+
+          const activeChatId = chatRes.data.id;
+          setChatId(activeChatId);
+
+          const messagesRes = await api.get(`/api/chat/${activeChatId}/messages`);
+          if (cancelled) return;
+
+          setMessages(messagesRes.data);
+          await api.put(`/api/chat/${activeChatId}/read?userId=${userId}`);
+
+          if (!cancelled) {
+            window.dispatchEvent(new CustomEvent('chatUnreadChanged'));
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      };
+
+      fetchHistory();
+      poll = setInterval(fetchHistory, 3000);
+      return () => {
+        cancelled = true;
+        clearInterval(poll);
+      };
+    }, [chatPartnerId, userId]);
+
+    
+    useEffect(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const sendMessage = async (e) => {
+      if (e) e.preventDefault();
+      if (!input.trim() || !chatId || !userId) return;
+      
+      const content = input.trim();
+      setInput('');
+      
+      
+      const tempId = Date.now();
+      setMessages(prev => [...prev, {
+        id: tempId, 
+        content,
+        senderId: Number(userId),
+        timestamp: new Date().toISOString()
+      }]);
+
+      try {
+        await api.post('/api/chat/message', {
+          chatId,
+          senderId: Number(userId),
+          content
+        });
+        window.dispatchEvent(new CustomEvent('chatUnreadChanged'));
+      } catch (err) {
+        console.error('Send failed:', err);
+      }
     };
 
-    const initChatSystem = async (userId) => {
-        // 1. Проверяем, нужно ли создать новый чат (переход с карточки клиента)
-        const chatTarget = JSON.parse(localStorage.getItem('chatTarget'));
+    if (loading) return <div style={{ color: 'var(--text-muted)', padding: 32 }}>{t('loading')}</div>;
 
-        if (chatTarget) {
-            localStorage.removeItem('chatTarget'); // Чистим, чтобы не создавать вечно
+    
+    if (userRole === 'CLIENT' && !partner) {
+      return (
+        <div className="card" style={{ textAlign: 'center', padding: 'var(--space-2xl)', margin: '0 auto', maxWidth: '600px' }}>
+          <div style={{ fontSize: 40, marginBottom: 'var(--space-md)' }}>💬</div>
+          <h2>{t('chat_no_psych')}</h2>
+          <p style={{ color: 'var(--text-muted)' }}>
+            {t('chat_no_psych_hint')}
+          </p>
+        </div>
+      );
+    }
 
-            try {
-                // Создаем или получаем чат
-                const res = await fetch(`/api/chat/create?userId=${userId}&targetId=${chatTarget.id}`, {
-                    method: 'POST'
-                });
-                if (res.ok) {
-                    const newChat = await res.json();
-                    setSelectedChat(newChat);
-                    loadMessages(newChat.id);
-                }
-            } catch (e) {
-                console.error("Ошибка создания чата", e);
-            }
-        }
+    
+    if (userRole === 'PSYCHOLOGIST' && clientList.length === 0) {
+      return (
+        <div className="card" style={{ textAlign: 'center', padding: 'var(--space-2xl)', margin: '0 auto', maxWidth: '600px' }}>
+          <div style={{ fontSize: 40, marginBottom: 'var(--space-md)' }}>💬</div>
+          <h2>{t('chat_no_clients')}</h2>
+          <p style={{ color: 'var(--text-muted)' }}>
+            {t('chat_no_clients_hint')}
+          </p>
+        </div>
+      );
+    }
 
-        // 2. Загружаем список чатов
-        loadChats(userId);
-    };
-
-    const loadChats = async (userId) => {
-        try {
-            const res = await fetch(`/api/chat/user/${userId}`);
-            if (res.ok) {
-                const data = await res.json();
-                setChats(data);
-            }
-        } catch (e) { console.error(e); }
-    };
-
-    const loadMessages = async (chatId) => {
-        if (!chatId) return;
-        try {
-            const res = await fetch(`/api/chat/${chatId}/messages`);
-            if (res.ok) {
-                const data = await res.json();
-                setMessages(data);
-            } else {
-                setMessages([]);
-            }
-        } catch (e) {
-            setMessages([]);
-        }
-    };
-
-    // --- ФУНКЦИЯ ОТПРАВКИ СООБЩЕНИЯ ---
-    const handleSendMessage = async () => {
-        if (!newMessage.trim() || !selectedChat || !user.id) return;
-
-        const tempMsg = {
-            chatId: selectedChat.id,
-            senderId: user.id,
-            content: newMessage,
-            timestamp: new Date()
-        };
-
-        try {
-            const res = await fetch('/api/chat/message', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(tempMsg)
-            });
-
-            if (res.ok) {
-                const savedMsg = await res.json();
-                setMessages(prev => [...prev, savedMsg]);
-                setNewMessage('');
-            } else {
-                toast.error("Ошибка отправки");
-            }
-        } catch (error) {
-            console.error(error);
-            toast.error("Ошибка соединения");
-        }
-    };
-
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter') {
-            handleSendMessage();
-        }
-    };
-
-    const getChatName = (chat) => {
-        if (!chat || !user.id) return "Чат";
-        const partner = chat.participant1.id === user.id ? chat.participant2 : chat.participant1;
-        return partner.fullName || partner.username;
-    };
-
-    const getChatAvatar = (chat) => {
-        if (!chat || !user.id) return null;
-        const partner = chat.participant1.id === user.id ? chat.participant2 : chat.participant1;
-        return partner.photoUrl;
-    };
+    const currentPartner = userRole === 'CLIENT' ? partner : activeClient;
 
     return (
-        <div className="diary-container" style={{maxWidth: '1000px', padding: '0', height: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', border: '1px solid #e2e8f0'}}>
-            <div className="chat-layout-container" style={{flex: 1, display: 'flex', height: '100%'}}>
+      <div className="chat-layout" style={{ display: 'flex', gap: 'var(--space-md)', height: 'calc(100vh - 120px)', flexWrap: 'wrap' }}>
 
-                {/* --- ЛЕВАЯ КОЛОНКА (САЙДБАР С КОНТАКТАМИ) --- */}
-                <div className="chat-sidebar" style={{
-                    width: '300px',
-                    minWidth: '250px',
-                    display: 'flex',
-                    flexDirection: 'column', // ВАЖНО: Выстраиваем сверху вниз
-                    overflowY: 'auto', // Добавляем скролл, если контактов много
-                    borderRight: '1px solid #e2e8f0',
-                    background: '#f8fafc'
-                }}>
-                    {chats.length === 0 && <div style={{padding: '20px', textAlign: 'center', color: '#94a3b8'}}>Нет активных чатов</div>}
-
-                    {chats.map(chat => (
-                        <div
-                            key={chat.id}
-                            onClick={() => { setSelectedChat(chat); loadMessages(chat.id); }}
-                            style={{
-                                padding: '15px', borderBottom: '1px solid #e2e8f0', cursor: 'pointer',
-                                background: selectedChat?.id === chat.id ? '#e0f2fe' : 'transparent',
-                                display: 'flex', alignItems: 'center', gap: '10px',
-                                transition: 'background 0.2s'
-                            }}
-                        >
-                            {/* Аватарка */}
-                            <div className="avatar-circle" style={{
-                                width: '45px', height: '45px', minWidth: '45px',
-                                borderRadius: '50%', background: '#cbd5e1', overflow: 'hidden'
-                            }}>
-                                {getChatAvatar(chat) ? (
-                                    <img src={`http://localhost:8080${getChatAvatar(chat)}`} style={{width: '100%', height: '100%', objectFit: 'cover'}} alt="avatar"/>
-                                ) : (
-                                    <div style={{width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', fontSize: '1.2rem'}}>👤</div>
-                                )}
-                            </div>
-
-                            {/* Текстовый блок */}
-                            <div style={{flex: 1, minWidth: 0}}>
-                                <div style={{
-                                    fontWeight: 'bold',
-                                    whiteSpace: 'nowrap',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    fontSize: '0.95rem',
-                                    color: '#1e293b'
-                                }}>
-                                    {getChatName(chat)}
-                                </div>
-                                <div style={{fontSize: '0.8rem', color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'}}>
-                                    {chat.lastMessage || "Нажмите, чтобы открыть"}
-                                </div>
-                            </div>
-
-                            {/* Время */}
-                            <div style={{fontSize: '0.75rem', color: '#94a3b8', whiteSpace: 'nowrap', alignSelf: 'flex-start'}}>
-                                {chat.lastMessageTime ? new Date(chat.lastMessageTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                {/* --- ПРАВАЯ КОЛОНКА (ОКНО ЧАТА) --- */}
-                <div className="chat-main" style={{flex: 1, display: 'flex', flexDirection: 'column', background: 'white'}}>
-                    {selectedChat ? (
-                        <>
-                            {/* Шапка чата */}
-                            <div style={{padding: '15px 20px', borderBottom: '1px solid #e2e8f0', background: '#fff', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1rem', color: '#0f172a'}}>
-                                {getChatName(selectedChat)}
-                            </div>
-
-                            {/* Сообщения */}
-                            <div className="messages-area" style={{flex: 1, padding: '20px', overflowY: 'auto', background: '#f1f5f9', display: 'flex', flexDirection: 'column', gap: '10px'}}>
-                                {messages.length === 0 && <div style={{textAlign: 'center', color: '#94a3b8', marginTop: '20px'}}>Напишите первое сообщение...</div>}
-
-                                {messages.map((msg, index) => (
-                                    <div key={msg.id || index} style={{
-                                        alignSelf: msg.senderId === user.id ? 'flex-end' : 'flex-start',
-                                        maxWidth: '70%'
-                                    }}>
-                                        <div style={{
-                                            background: msg.senderId === user.id ? '#3b82f6' : 'white',
-                                            color: msg.senderId === user.id ? 'white' : '#334155',
-                                            padding: '10px 15px',
-                                            borderRadius: '12px',
-                                            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                                            borderBottomRightRadius: msg.senderId === user.id ? '2px' : '12px',
-                                            borderBottomLeftRadius: msg.senderId === user.id ? '12px' : '2px',
-                                            wordBreak: 'break-word'
-                                        }}>
-                                            {msg.content}
-                                        </div>
-                                        <div style={{fontSize: '0.7rem', color: '#94a3b8', marginTop: '4px', textAlign: msg.senderId === user.id ? 'right' : 'left'}}>
-                                            {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-                                        </div>
-                                    </div>
-                                ))}
-                                <div ref={messagesEndRef} />
-                            </div>
-
-                            {/* Область ввода */}
-                            <div className="chat-input-area" style={{padding: '15px', background: 'white', borderTop: '1px solid #e2e8f0', display: 'flex', gap: '10px', alignItems: 'center'}}>
-                                <input
-                                    value={newMessage}
-                                    onChange={(e) => setNewMessage(e.target.value)}
-                                    onKeyDown={handleKeyDown}
-                                    placeholder="Напишите сообщение..."
-                                    style={{
-                                        flex: 1,
-                                        padding: '12px 20px',
-                                        borderRadius: '25px',
-                                        border: '1px solid #cbd5e1',
-                                        outline: 'none',
-                                        fontSize: '0.95rem',
-                                        background: '#f8fafc'
-                                    }}
-                                />
-                                <button
-                                    onClick={handleSendMessage}
-                                    className="btn-primary"
-                                    style={{
-                                        borderRadius: '50%',
-                                        width: '45px',
-                                        height: '45px',
-                                        padding: 0,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        background: '#3b82f6',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        color: 'white',
-                                        fontSize: '1.2rem'
-                                    }}
-                                >
-                                    ➤
-                                </button>
-                            </div>
-                        </>
-                    ) : (
-                        <div style={{flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', flexDirection: 'column'}}>
-                            <div style={{fontSize: '4rem', marginBottom: '20px'}}>💬</div>
-                            <div style={{fontSize: '1.1rem'}}>Выберите чат слева или начните новый</div>
-                        </div>
-                    )}
-                </div>
+        {}
+        {userRole === 'PSYCHOLOGIST' && (
+          <div className="card chat-sidebar" style={{ width: 240, flexShrink: 0, padding: '12px 0', overflowY: 'auto' }}>
+            <div style={{ padding: '0 12px 8px', fontSize: 11, fontWeight: 600,
+                          color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              {t('chat_clients')}
             </div>
+            {clientList.map(client => {
+              const unreadCount = Number(unreadBySender[client.id] || 0);
+
+              return (
+                <div
+                  key={client.id}
+                  onClick={() => setActiveClient(client)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                    cursor: 'pointer', borderRadius: 'var(--radius-sm)',
+                    background: activeClient?.id === client.id ? 'var(--bg-surface-2)' : 'transparent',
+                    borderLeft: activeClient?.id === client.id ? '3px solid var(--accent-primary)' : '3px solid transparent',
+                    transition: 'var(--transition-fast)', margin: '0 4px',
+                  }}
+                >
+                  {photoSrc(client)
+                    ? <img src={photoSrc(client)} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} alt="client" />
+                    : <div style={{
+                        width: 32, height: 32, borderRadius: '50%', background: 'var(--accent-orange-glow)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 13, fontWeight: 700, color: 'var(--accent-orange)'
+                      }}>{(client.fullName || client.username || "?")[0]}</div>
+                  }
+                  <div style={{ overflow: 'hidden', flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: activeClient?.id === client.id ? 'var(--text-primary)' : 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {client.fullName || client.username}
+                      </div>
+                  </div>
+                  {unreadCount > 0 && (
+                    <span className="nav-badge" style={{ marginLeft: 0 }}>
+                      {unreadCount}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {}
+        <div className="chat-container card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 0, overflow: 'hidden', minWidth: '300px' }}>
+          {}
+          <div className="chat-header" style={{ padding: '12px 20px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            {}
+            <div style={{ position: 'relative' }}>
+              {photoSrc(currentPartner)
+                ? <img src={photoSrc(currentPartner)}
+                    style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover' }} alt="partner" />
+                : <div style={{
+                    width: 40, height: 40, borderRadius: '50%',
+                    background: 'linear-gradient(135deg, var(--accent-primary), #7c3aed)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 16, fontWeight: 700, color: '#fff'
+                  }}>
+                    {(currentPartner?.fullName || currentPartner?.username || "?")[0]}
+                  </div>
+              }
+              <div style={{
+                position: 'absolute', bottom: 1, right: 1,
+                width: 10, height: 10, background: '#34d399',
+                borderRadius: '50%', border: '2px solid var(--bg-surface)'
+              }} />
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>
+                {currentPartner?.fullName || currentPartner?.username}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                {userRole === 'CLIENT' ? t('chat_psychologist') : t('chat_client')}
+              </div>
+            </div>
+          </div>
+
+          {}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px',
+                        display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {messages.length === 0 && (
+              <div style={{ textAlign: 'center', color: 'var(--text-muted)',
+                            fontSize: 13, marginTop: 32 }}>
+                {t('chat_start')}
+              </div>
+            )}
+            {messages.map(msg => {
+              const isMe = String(msg.senderId ?? msg.sender?.id ?? msg.sender) === String(userId);
+              const sentAt = msg.sentAt || msg.timestamp;
+              return (
+                <div key={msg.id} style={{ display: 'flex', flexDirection: 'column',
+                                           alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                  <div className={isMe ? 'message message-user' : 'message message-ai'}>
+                    {msg.content}
+                  </div>
+                  <div className="message-time" style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2, marginBottom: 8 }}>
+                    {sentAt ? new Date(sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </div>
+
+          {}
+          <div className="chat-input-area" style={{ padding: '16px 20px', borderTop: '1px solid var(--border-subtle)' }}>
+            <form onSubmit={sendMessage} style={{ display: 'flex', width: '100%', gap: '10px' }}>
+                <input
+                className="input-field"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder={t('chat_placeholder')}
+                style={{ flex: 1, borderRadius: 'var(--radius-full)', padding: '10px 20px' }}
+                />
+                <button type="submit" className="btn-primary" style={{ borderRadius: '50%', width: 42, height: 42, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>➤</button>
+            </form>
+          </div>
         </div>
+      </div>
     );
 };
 

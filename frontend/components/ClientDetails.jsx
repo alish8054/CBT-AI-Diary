@@ -1,14 +1,28 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import toast from 'react-hot-toast';
+import api from '../src/api/axiosInstance';
+import { useLanguage } from '../src/i18n/LanguageContext';
 
 const moodToScore = (mood) => {
-    const scores = { "Депрессивно": 1, "Подавлено": 2, "Грустно": 3, "Раздраженно": 4, "Удовлетворённо": 6, "Радостно": 8, "Счастливо": 9, "Восторженно": 10 };
-    return scores[mood] || 5;
-};
+    const scores = {
+        depressed: 1,
+        down: 2,
+        sad: 3,
+        annoyed: 4,
+        calm: 6,
+        satisfied: 6,
+        joy: 8,
+        energetic: 8,
+        energy: 8,
+        happy: 9,
+        excited: 10,
+    };
 
+    return scores[String(mood || '').trim().toLowerCase()] ?? 5;
+};
 export default function ClientDetails() {
+    const { t } = useLanguage();
     const { id } = useParams();
     const navigate = useNavigate();
     const [client, setClient] = useState(null);
@@ -19,85 +33,50 @@ export default function ClientDetails() {
     const [activeTab, setActiveTab] = useState('diary');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [aiSummary, setAiSummary] = useState('');
-    const [generatingSummary, setGeneratingSummary] = useState(false);
-
     useEffect(() => {
         let isMounted = true;
-
-        const fetchJson = async (url) => {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`${response.status} ${response.statusText}`);
-            }
-            return response.json();
-        };
 
         const loadClientDetails = async () => {
             setLoading(true);
             setError('');
 
             try {
-                const [clientData, moodsData, diaryData, dreamsData] = await Promise.all([
-                    fetchJson(`/api/users/${id}`),
-                    fetchJson(`/api/psychologist/client/${id}/mood-history`),
-                    fetchJson(`/api/diary/user/${id}`),
-                    fetchJson(`/api/dreams/user/${id}`)
+                const [clientRes, moodsRes, diaryRes, dreamsRes] = await Promise.all([
+                    api.get(`/api/users/${id}`),
+                    api.get(`/api/psychologist/client/${id}/mood-history`),
+                    api.get(`/api/diary/user/${id}`),
+                    api.get(`/api/dreams/user/${id}`)
                 ]);
 
                 if (!isMounted) return;
 
-                const formattedMoodHistory = moodsData.map(item => ({
+                const formattedMoodHistory = moodsRes.data.map(item => ({
                     ...item,
                     score: moodToScore(item.mood)
                 }));
 
-                setClient(clientData);
+                setClient(clientRes.data);
                 setMoodHistory(formattedMoodHistory);
-                setDiaryRecords(diaryData);
-                setDreamRecords(dreamsData);
-                setRecords(activeTab === 'dreams' ? dreamsData : diaryData);
+                setDiaryRecords(diaryRes.data);
+                setDreamRecords(dreamsRes.data);
+                setRecords(activeTab === 'dreams' ? dreamsRes.data : diaryRes.data);
             } catch (e) {
                 console.error('Client details loading failed:', e);
                 if (isMounted) {
-                    setClient(null);
-                    setError('Не удалось загрузить досье клиента. Проверьте, что сервер запущен и клиент существует.');
+                    setError(t('client_details_load_error'));
                 }
             } finally {
-                if (isMounted) {
-                    setLoading(false);
-                }
+                if (isMounted) setLoading(false);
             }
         };
 
         loadClientDetails();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [id]);
+        return () => { isMounted = false; };
+    }, [id, t]);
 
     useEffect(() => {
         setRecords(activeTab === 'dreams' ? dreamRecords : diaryRecords);
     }, [activeTab, diaryRecords, dreamRecords]);
-
-    const handleGenerateSummary = async () => {
-        setGeneratingSummary(true);
-        try {
-            const res = await fetch(`/api/psychologist/client/${id}/summary`);
-            if (res.ok) {
-                const text = await res.text();
-                setAiSummary(text);
-                toast.success("Сводка сформирована");
-            } else {
-                toast.error("Ошибка при генерации сводки");
-            }
-        } catch (e) {
-            toast.error("Ошибка сети");
-        } finally {
-            setGeneratingSummary(false);
-        }
-    };
 
     const handleStartChat = () => {
         if (!client) return;
@@ -105,106 +84,75 @@ export default function ClientDetails() {
         navigate('/psychologist/chat');
     };
 
-    if (error) return <div className="diary-container">Error loading client details. Check that the backend is running and the client exists.</div>;
-
-    if (loading) return <div className="diary-container">⏳ Загрузка досье...</div>;
-    if (!client) return <div className="diary-container">❌ Клиент не найден</div>;
+    if (error) return <div className="card" style={{ margin: '20px', color: '#f87171' }}>{error}</div>;
+    if (loading) return <div style={{ textAlign: 'center', padding: '50px' }}>{t('client_details_loading')}</div>;
+    if (!client) return <div className="card" style={{ margin: '20px' }}>{t('client_details_not_found')}</div>;
 
     return (
-        <div className="diary-container" style={{maxWidth: '1000px'}}>
-            {/* ШАПКА ПРОФИЛЯ */}
-            <div style={{display: 'flex', gap: '30px', marginBottom: '30px', alignItems: 'center', flexWrap: 'wrap'}}>
-                {/* ... (avatar code) */}
-                <div style={{flex: 1}}>
-                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px'}}>
-                        <h1 style={{margin: 0}}>{client.fullName || client.username}</h1>
-                        <div style={{display: 'flex', gap: '10px'}}>
-                            <button onClick={handleGenerateSummary} className="btn-secondary" disabled={generatingSummary} style={{padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px'}}>
-                                {generatingSummary ? '⏳ Генерирую...' : '✨ AI Сводка'}
-                            </button>
-                            <button onClick={handleStartChat} className="btn-primary" style={{padding: '10px 20px'}}>
-                                💬 Написать сообщение
-                            </button>
-                        </div>
+        <div className="fade-in" style={{ maxWidth: '1000px', margin: '0 auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 'var(--space-xl)', flexWrap: 'wrap', gap: 'var(--space-md)' }}>
+                <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '8px' }}>
+                        <h1>{client.fullName || client.username}</h1>
+                        <span className="badge badge-amber">{t('client_details_active_status')}</span>
                     </div>
-                    {/* ... (rest of profile info) */}
+                    <p style={{ color: 'var(--text-muted)' }}>{t('client_details_id')} #{client.id.toString().padStart(4, '0')}{' \u2022 '}{client.email}</p>
+                </div>
+                <div className="btn-row">
+                    <button onClick={handleStartChat} className="btn-primary">
+                        {t('client_details_write')}
+                    </button>
                 </div>
             </div>
 
-            {/* AI SUMMARY BOX */}
-            {aiSummary && (
-                <div style={{
-                    background: '#f8fafc',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '12px',
-                    padding: '20px',
-                    marginBottom: '30px',
-                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
-                }}>
-                    <h3 style={{marginTop: 0, color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px'}}>
-                        ✨ Клиническая сводка (AI)
-                    </h3>
-                    <div style={{
-                        whiteSpace: 'pre-wrap',
-                        lineHeight: '1.6',
-                        color: '#334155',
-                        fontSize: '0.95rem'
-                    }}>
-                        {aiSummary}
-                    </div>
+            <div className="card" style={{ marginBottom: 'var(--space-xl)' }}>
+                <h3 className="card-header">{t('client_details_mood_dynamics')}</h3>
+                <div style={{ height: '300px', width: '100%', marginTop: 'var(--space-md)' }}>
+                    {moodHistory.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={moodHistory}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
+                                <XAxis dataKey="date" stroke="var(--text-muted)" style={{ fontSize: '11px' }} />
+                                <YAxis domain={[0, 10]} stroke="var(--text-muted)" style={{ fontSize: '11px' }} />
+                                <Tooltip 
+                                    contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border-medium)', borderRadius: '8px' }}
+                                    itemStyle={{ color: 'var(--accent-primary)' }}
+                                />
+                                <Line type="monotone" dataKey="score" stroke="var(--accent-primary)" strokeWidth={3} dot={{ fill: 'var(--accent-primary)', r: 4 }} activeDot={{ r: 6 }} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>{t('client_details_no_chart_data')}</div>
+                    )}
                 </div>
-            )}
-
-            {/* ГРАФИК */}
-            <div style={{height: '350px', background: '#fff', padding: '20px', borderRadius: '12px', marginBottom: '30px', border: '1px solid #eee'}}>
-                <h3>Динамика настроения</h3>
-                {moodHistory.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="90%" minWidth={300} minHeight={250}>
-                        <LineChart data={moodHistory}>
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis dataKey="date" />
-                            <YAxis domain={[0, 10]} />
-                            <Tooltip />
-                            <Line type="monotone" dataKey="score" stroke="#667eea" strokeWidth={2} activeDot={{ r: 8 }} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                ) : (
-                    <p style={{color: '#999', textAlign: 'center', marginTop: '50px'}}>Нет данных для графика</p>
-                )}
             </div>
 
-            {/* ВКЛАДКИ */}
-            <div style={{marginBottom: '20px'}}>
+            <div className="btn-row" style={{ marginBottom: 'var(--space-lg)' }}>
                 <button
                     className={activeTab === 'diary' ? 'btn-primary' : 'btn-secondary'}
                     onClick={() => setActiveTab('diary')}
-                    style={{marginRight: '10px'}}
+                    style={{ background: activeTab === 'diary' ? 'var(--color-diary)' : '' }}
                 >
-                    📖 Дневник
+                    {t('client_details_diary')}
                 </button>
                 <button
                     className={activeTab === 'dreams' ? 'btn-primary' : 'btn-secondary'}
                     onClick={() => setActiveTab('dreams')}
+                    style={{ background: activeTab === 'dreams' ? 'var(--color-dreams)' : '' }}
                 >
-                    🌙 Сны
+                    {t('client_details_dreams')}
                 </button>
             </div>
 
-            {/* СПИСОК ЗАПИСЕЙ */}
-            <div className="entry-list">
-                {records.length === 0 && <p style={{color: '#999'}}>Записей пока нет.</p>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)' }}>
+                {records.length === 0 && <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 'var(--space-xl)' }}>{t('diary_empty')}</p>}
 
                 {records.map(rec => (
-                    <div key={rec.id} className="entry-item">
-                        <small style={{color: '#888'}}>{new Date(rec.createdAt).toLocaleString()}</small>
-                        {/* Поддержка разных имен полей */}
-                        <p style={{marginTop: '10px', whiteSpace: 'pre-wrap'}}>{rec.text || rec.content}</p>
-
-                        {(rec.aiAnalysis || rec.interpretation) && (
-                            <div style={{background: '#f0f9ff', padding: '15px', marginTop: '10px', borderRadius: '8px', borderLeft: '4px solid #667eea'}}>
-                                <strong>💡 AI Анализ:</strong> {rec.aiAnalysis || rec.interpretation}
-                            </div>
-                        )}
+                    <div key={rec.id} className="card">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-sm)' }}>
+                            <span className="badge" style={{ background: 'var(--bg-surface-2)', color: 'var(--text-muted)' }}>{new Date(rec.createdAt).toLocaleString()}</span>
+                        </div>
+                        <p style={{ whiteSpace: 'pre-wrap', color: 'var(--text-secondary)' }}>{rec.text || rec.content}</p>
                     </div>
                 ))}
             </div>

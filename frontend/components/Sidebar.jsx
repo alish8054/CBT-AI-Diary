@@ -1,118 +1,118 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import API_URL from '../src/api';
+import { useLanguage } from '../src/i18n/LanguageContext';
+import LangSwitcher from './LangSwitcher';
+import { clearAuthSession, getAuthUser, getPhotoSrc } from '../src/authStorage';
+import ThemeToggle from './ThemeToggle';
+import useUnreadChatCount from '../src/useUnreadChatCount';
 
-const Sidebar = () => {
+const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     const location = useLocation();
+    const { t } = useLanguage();
     const [user, setUser] = useState({});
-    const [displayName, setDisplayName] = useState('Загрузка...');
+    const [displayName, setDisplayName] = useState(t('loading'));
     const [avatarLetter, setAvatarLetter] = useState('?');
+    const [avatarSrc, setAvatarSrc] = useState(null);
+    const unreadChatCount = useUnreadChatCount();
 
     useEffect(() => {
-        try {
-            // Читаем то, что сохранил Login.jsx
-            const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const loadUser = () => {
+            const storedUser = getAuthUser();
             setUser(storedUser);
-
-            // Логика имени: fullName -> username -> email -> Гость
-            const name = storedUser.fullName || storedUser.username || 'Гость';
+            const name = storedUser.fullName || storedUser.username || t('profile_user');
             setDisplayName(name);
+            setAvatarLetter((name || '?').charAt(0).toUpperCase());
+            setAvatarSrc(getPhotoSrc(storedUser, API_URL));
+        };
 
-            // Первая буква для аватарки
-            setAvatarLetter(name.charAt(0).toUpperCase());
-        } catch (e) {
-            setDisplayName('Гость');
-        }
-    }, []);
+        loadUser();
+        window.addEventListener('userProfileChanged', loadUser);
+        return () => window.removeEventListener('userProfileChanged', loadUser);
+    }, [t]);
 
     const isActive = (path) => location.pathname === path;
 
     const handleLogout = () => {
-        localStorage.clear(); // Удаляем всё (юзера, настроения)
+        clearAuthSession();
         window.location.href = '/login';
     };
 
-    // --- СТИЛИ (INLINE STYLES) ---
-    // Используем !important через string trick, если обычный стиль не работает
-    const containerStyle = {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        width: '280px',
-        height: '100vh',
-        backgroundColor: '#2c3e50', // ТЕМНО-СИНИЙ
-        color: 'white',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '30px 20px',
-        zIndex: 1000,
-        overflowY: 'auto',
-        boxShadow: '4px 0 15px rgba(0,0,0,0.2)'
+    const handleNavClick = () => {
+        if (window.innerWidth < 768) setSidebarOpen(false);
     };
-
-    // Общие стили для ссылок
-    const linkBase = {
-        textDecoration: 'none',
-        padding: '12px 20px',
-        marginBottom: '8px',
-        borderRadius: '12px',
-        display: 'flex', alignItems: 'center', gap: '15px',
-        fontSize: '1rem', fontWeight: '600', transition: '0.3s'
-    };
-
-    const linkNormal = { ...linkBase, color: 'rgba(255,255,255,0.7)' };
-    const linkActive = { ...linkBase, background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)', color: 'white', boxShadow: '0 4px 15px rgba(118, 75, 162, 0.4)' };
 
     return (
-        <div style={containerStyle} className="force-dark-sidebar">
-            {/* ПРОФИЛЬ В САЙДБАРЕ */}
-            <Link to="/profile" style={{textDecoration: 'none'}}>
-                <div style={{textAlign: 'center', marginBottom: '40px', paddingBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)'}}>
-                    <div style={{
-                        width: '80px', height: '80px', margin: '0 auto 15px',
-                        backgroundColor: '#e67e22',
-                        borderRadius: '50%',
-                        overflow: 'hidden', // Чтобы фото было круглым
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        border: '3px solid rgba(255,255,255,0.3)'
-                    }}>
-                        {user.photoUrl ? (
-                            <img
-                                src={`http://localhost:8080${user.photoUrl}`}
-                                style={{width: '100%', height: '100%', objectFit: 'cover'}}
-                                alt="User"
-                                onError={(e) => { e.target.style.display = 'none'; }}
-                            />
-                        ) : (
-                            <span style={{fontSize: '2.5rem', fontWeight: 'bold', color: 'white'}}>
-                    {displayName.charAt(0).toUpperCase()}
-                </span>
-                        )}
-                    </div>
-                    <h3 style={{color: 'white', margin: 0, fontSize: '1.1rem'}}>{displayName}</h3>
-                    <div style={{fontSize: '0.8rem', color: '#bdc3c7', marginTop: '5px'}}>Личный кабинет</div>
+        <aside className={`sidebar${sidebarOpen ? '' : ' collapsed'}`}>
+            <button
+                className="sidebar-toggle-btn"
+                onClick={() => setSidebarOpen(open => !open)}
+                aria-label="Toggle sidebar"
+            >
+                {sidebarOpen ? '×' : '☰'}
+            </button>
+
+            <div className="sidebar-brand">
+                <div className="sidebar-brand-icon">
+                    <img src="/app-icon-rounded.png" alt="Sau Sana" className="brand-logo-image" />
+                </div>
+                <div>
+                    <div className="sidebar-brand-name">Sau Sana</div>
+                    <div className="sidebar-brand-sub">Mental Wellness</div>
+                </div>
+            </div>
+
+            <Link to="/profile" className="sidebar-user" onClick={handleNavClick}>
+                <div className="user-avatar">
+                    {avatarSrc ? (
+                        <img src={avatarSrc} alt="User" />
+                    ) : (
+                        <span>{avatarLetter}</span>
+                    )}
+                </div>
+                <div style={{ overflow: 'hidden' }}>
+                    <div className="user-name">{displayName}</div>
+                    <div className="user-role">{t('profile_user')}</div>
                 </div>
             </Link>
 
-            {/* МЕНЮ */}
-            <nav style={{display: 'flex', flexDirection: 'column'}}>
-                <Link to="/client-home" style={isActive('/client-home') ? linkActive : linkNormal}>🏠 Главная</Link>
-                <Link to="/diary" style={isActive('/diary') ? linkActive : linkNormal}>📖 Дневник</Link>
-                <Link to="/dreams" style={isActive('/dreams') ? linkActive : linkNormal}>🌙 Сны</Link>
-                <Link to="/ai-advice" style={isActive('/ai-advice') ? linkActive : linkNormal}>🤖 AI Советы</Link>
-                <Link to="/inner-world" style={isActive('/inner-world') ? linkActive : linkNormal}>✨ Мир</Link>
-                <Link to="/chat" style={isActive('/chat') ? linkActive : linkNormal}>💬 Чат</Link>
-                <Link to="/client-assignments" style={isActive('/client-assignments') ? linkActive : linkNormal}>📝 Задания</Link>
-
-                <button onClick={handleLogout} style={{
-                    marginTop: 'auto', background: 'transparent', color: 'rgba(255,255,255,0.7)',
-                    border: 'none', padding: '12px', borderRadius: '12px', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '15px', fontWeight: 'bold', fontSize: '1rem'
-                }}>
-                    🚪 Выйти
-                </button>
+            <nav className="nav-section">
+                <Link to="/client-home" className={`nav-item ${isActive('/client-home') ? 'active' : ''}`} onClick={handleNavClick}>
+                    <span className="nav-icon">🏠</span> <span className="nav-label">{t('nav_home')}</span>
+                </Link>
+                <Link to="/diary" className={`nav-item ${isActive('/diary') ? 'active' : ''}`} onClick={handleNavClick}>
+                    <span className="nav-icon">📖</span> <span className="nav-label">{t('nav_diary')}</span>
+                </Link>
+                <Link to="/dreams" className={`nav-item ${isActive('/dreams') ? 'active' : ''}`} onClick={handleNavClick}>
+                    <span className="nav-icon">🌙</span> <span className="nav-label">{t('nav_dreams')}</span>
+                </Link>
+                <Link to="/ai-chat" className={`nav-item ${isActive('/ai-chat') ? 'active' : ''}`} onClick={handleNavClick}>
+                    <span className="nav-icon">✨</span> <span className="nav-label">{t('ai_chat_title')}</span>
+                </Link>
+                <Link to="/inner-world" className={`nav-item ${isActive('/inner-world') ? 'active' : ''}`} onClick={handleNavClick}>
+                    <span className="nav-icon">🌿</span> <span className="nav-label">{t('nav_world')}</span>
+                </Link>
+                <Link to="/chat" className={`nav-item ${isActive('/chat') ? 'active' : ''}`} onClick={handleNavClick}>
+                    <span className="nav-icon">💬</span> <span className="nav-label">{t('nav_chat')}</span>
+                    {unreadChatCount > 0 && <span className="nav-badge">{unreadChatCount}</span>}
+                </Link>
+                <Link to="/client-assignments" className={`nav-item ${isActive('/client-assignments') ? 'active' : ''}`} onClick={handleNavClick}>
+                    <span className="nav-icon">📝</span> <span className="nav-label">{t('nav_tasks')}</span>
+                </Link>
             </nav>
-        </div>
+
+            <div className="sidebar-footer">
+                <ThemeToggle collapsed={!sidebarOpen} />
+                <div className="divider" style={{ margin: '8px 0' }} />
+                <LangSwitcher collapsed={!sidebarOpen} />
+                <div className="divider" style={{ margin: '8px 0' }} />
+                <button onClick={handleLogout} className="logout-btn">
+                    <span className="nav-icon">🚪</span> <span className="logout-label">{t('nav_logout')}</span>
+                </button>
+            </div>
+        </aside>
     );
 };
 
 export default Sidebar;
+

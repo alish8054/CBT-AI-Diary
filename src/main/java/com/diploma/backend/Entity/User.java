@@ -1,6 +1,7 @@
 package com.diploma.backend.Entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -16,6 +17,7 @@ public class User {
     @Column(unique = true, nullable = false)
     private String username;
     private String email;
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
     private String role;
 
@@ -46,7 +48,7 @@ public class User {
 
     @ManyToOne
     @JoinColumn(name = "psychologist_id")
-    @JsonIgnoreProperties({"password", "certificateUrls", "photoUrl", "aboutMe"}) // Не тянем лишние данные психолога вложенно
+    @JsonIgnoreProperties({"password", "certificateUrls", "aboutMe"}) // Не тянем лишние данные психолога вложенно
     private User psychologist;
     private java.time.LocalDate subscriptionEndsAt;
 }
