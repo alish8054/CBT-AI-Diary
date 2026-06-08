@@ -14,9 +14,6 @@ const Login = () => {
         console.log('Login component mounted');
     }, []);
 
-    const [step, setStep] = useState('login'); 
-    const [pendingUserId, setPendingUserId] = useState(null);
-    const [otp, setOtp] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
@@ -62,14 +59,6 @@ const Login = () => {
             });
             console.log('API CALL SUCCESSFUL. Response data:', res.data);
 
-            if (res.data.requires2fa) {
-                console.log('2FA required, switching step');
-                setPendingUserId(res.data.userId);
-                setStep('2fa');
-                toast.success(t('auth_2fa_subtitle'));
-                return;
-            }
-
             console.log('Saving credentials to localStorage...');
             const user = persistSession(res.data, formData.username);
 
@@ -95,64 +84,6 @@ const Login = () => {
             setLoading(false);
         }
     };
-
-    const handleVerify2fa = async (e) => {
-        e.preventDefault();
-        setError('');
-        setLoading(true);
-        try {
-            const res = await api.post('/api/auth/verify-2fa', { userId: pendingUserId, otp });
-            const user = persistSession(res.data, formData.username);
-
-            toast.dismiss('auth-login-success');
-            toast.success(t('auth_reg_success'), {
-                id: 'auth-login-success',
-                duration: 1500,
-            });
-            navigate(user.role === 'PSYCHOLOGIST' ? '/psychologist' : '/client-home');
-        } catch (err) {
-            console.error('2FA ERROR:', err);
-            setError(err.response?.data?.error || t('auth_2fa_invalid'));
-            toast.error(t('auth_2fa_invalid'));
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    if (step === '2fa') {
-        return (
-            <div className="auth-page">
-                <div className="auth-card">
-                    <div className="auth-logo auth-logo-mark">
-                        <img src="/app-icon-rounded.png" alt="Sau Sana" />
-                    </div>
-                    <h2 className="auth-title">{t('auth_2fa_title')}</h2>
-                    <p className="auth-subtitle">{t('auth_2fa_subtitle')}</p>
-                    <form onSubmit={handleVerify2fa}>
-                        <label className="input-label">{t('auth_2fa_code')}</label>
-                        <input
-                            className="input-field"
-                            value={otp}
-                            onChange={e => setOtp(e.target.value.replace(/\D/g,'').slice(0,6))}
-                            placeholder="000000"
-                            inputMode="numeric"
-                            maxLength={6}
-                            style={{ textAlign: 'center', fontSize: 24, letterSpacing: '0.4em' }}
-                            autoFocus
-                        />
-                        <button className="btn-primary" type="submit" disabled={loading}
-                            style={{ width: '100%', marginTop: 16, justifyContent: 'center' }}>
-                            {loading ? t('loading') : t('auth_2fa_verify')}
-                        </button>
-                    </form>
-                    {error && <p style={{ color: '#f87171', fontSize: 13, textAlign: 'center', marginTop: 10 }}>{error}</p>}
-                    <button className="btn-secondary" onClick={() => setStep('login')} style={{ width: '100%', marginTop: 10, justifyContent: 'center' }}>
-                        {t('cancel')}
-                    </button>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="auth-page">

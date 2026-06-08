@@ -234,8 +234,6 @@ const Profile = () => {
     const [myPsychologist, setMyPsychologist] = useState(null);
     const [pendingRequests, setPendingRequests] = useState([]);
     const [removingPsychologist, setRemovingPsychologist] = useState(false);
-    const [twoFaStep, setTwoFaStep] = useState('none'); 
-    const [twoFaOtp, setTwoFaOtp] = useState('');
     const resolvePhoto = (data) => {
         return getPhotoSrc(data, API_URL);
     };
@@ -350,36 +348,6 @@ const Profile = () => {
         }
     };
 
-    const handleEnable2fa = async () => {
-        if (!user.email) {
-            toast.error(t('profile_2fa_no_email') || "Add email first");
-            return;
-        }
-        try {
-            await api.post('/api/auth/request-2fa', { userId: user.id });
-            setTwoFaStep('enter-otp');
-            toast.success(t('profile_2fa_send_code'));
-        } catch (err) { toast.error(t('error_generic')); }
-    };
-
-    const handleConfirm2fa = async () => {
-        try {
-            await api.post('/api/auth/confirm-2fa', { userId: user.id, otp: twoFaOtp });
-            setUser({ ...user, twoFactorEnabled: true });
-            setTwoFaStep('none');
-            setTwoFaOtp('');
-            toast.success(t('profile_2fa_enabled'));
-        } catch (err) { toast.error(t('auth_2fa_invalid')); }
-    };
-
-    const handleDisable2fa = async () => {
-        try {
-            await api.post('/api/auth/disable-2fa', { userId: user.id });
-            setUser({ ...user, twoFactorEnabled: false });
-            toast.success(t('profile_2fa_disabled'));
-        } catch (err) { toast.error(t('error_generic')); }
-    };
-
     const handleLogout = () => {
         clearAuthSession();
         window.location.href = '/login';
@@ -467,35 +435,6 @@ const Profile = () => {
                 </div>
             </div>
 
-            {}
-            <div className="card" style={{ marginTop: 16 }}>
-              <div className="card-header">🔐 {user.twoFactorEnabled ? t('profile_2fa_enabled') : t('profile_2fa_disabled')}</div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>
-                    {user.twoFactorEnabled ? t('profile_2fa_enabled') : t('profile_2fa_disabled')}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                    {user.email || t('profile_not_set')}
-                  </div>
-                </div>
-                {user.twoFactorEnabled
-                  ? <button className="btn-secondary" onClick={handleDisable2fa}>{t('profile_2fa_disable')}</button>
-                  : <button className="btn-primary" onClick={handleEnable2fa}>{t('profile_2fa_enable')}</button>
-                }
-              </div>
-              {twoFaStep === 'enter-otp' && (
-                <div style={{ marginTop: 14 }}>
-                  <input className="input-field" value={twoFaOtp}
-                    onChange={e => setTwoFaOtp(e.target.value.replace(/\D/g,'').slice(0,6))}
-                    placeholder="000000" inputMode="numeric"
-                    style={{ textAlign: 'center', letterSpacing: '0.4em', fontSize: 20 }} />
-                  <button className="btn-primary" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }} onClick={handleConfirm2fa}>
-                    {t('profile_2fa_confirm')}
-                  </button>
-                </div>
-              )}
-            </div>
 
             {user.role === 'CLIENT' && (
                 <PsychologistSelector
