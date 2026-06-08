@@ -18,6 +18,9 @@ public class TokenService {
     private final byte[] signingKey;
 
     public TokenService(@Value("${app.auth.jwt-secret:local-dev-change-this-secret}") String jwtSecret) {
+        if (jwtSecret == null || jwtSecret.isBlank()) {
+            throw new IllegalStateException("JWT_SECRET is required in production environment variables");
+        }
         this.signingKey = jwtSecret.getBytes(StandardCharsets.UTF_8);
     }
 
