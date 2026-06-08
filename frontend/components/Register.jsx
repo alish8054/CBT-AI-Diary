@@ -5,6 +5,16 @@ import api from '../src/api/axiosInstance';
 import { useLanguage } from '../src/i18n/LanguageContext';
 import { clearAuthSession } from '../src/authStorage';
 
+const PASSWORD_RULE_MESSAGE = 'Password must be at least 6 characters and include a letter, a number, and a symbol such as @ or _.';
+
+const isStrongPassword = (password) => {
+    const chars = Array.from(password || '');
+    const hasLetter = chars.some(char => /\p{L}/u.test(char));
+    const hasNumber = chars.some(char => /\p{N}/u.test(char));
+    const hasSymbol = chars.some(char => !/\p{L}/u.test(char) && !/\p{N}/u.test(char) && !/\s/u.test(char));
+    return chars.length >= 6 && hasLetter && hasNumber && hasSymbol;
+};
+
 export default function Register() {
     const { t } = useLanguage();
     const [formData, setFormData] = useState({ username: '', password: '', role: 'CLIENT', email: '' });
@@ -17,6 +27,12 @@ export default function Register() {
 
     const handleRegister = async (e) => {
         e.preventDefault();
+
+        if (!isStrongPassword(formData.password)) {
+            toast.error(PASSWORD_RULE_MESSAGE);
+            return;
+        }
+
         setLoading(true);
         try {
             const res = await api.post('/api/auth/register', formData);
@@ -83,11 +99,14 @@ export default function Register() {
                         <input
                             className="input-field"
                             type="password"
-                            placeholder={t('auth_password_reg_ph')}
+                            placeholder="At least 6 chars: letters, numbers, symbol"
                             value={formData.password}
                             onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                             required
                         />
+                        <p style={{ marginTop: 6, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                            Use at least 6 characters with a letter, a number, and a symbol like @ or _.
+                        </p>
                     </div>
                     <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>
                         {loading ? t('loading') : t('auth_submit_reg')}

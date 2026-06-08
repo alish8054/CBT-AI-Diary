@@ -23,6 +23,8 @@ import java.util.Set;
 public class AuthController {
 
     private static final Set<String> ALLOWED_ROLES = Set.of("CLIENT", "PSYCHOLOGIST");
+    private static final String PASSWORD_RULE_MESSAGE =
+            "Password must be at least 6 characters and include a letter, a number, and a symbol such as @ or _.";
 
     private final UserRepository userRepository;
     private final PasswordService passwordService;
@@ -33,6 +35,9 @@ public class AuthController {
         if (user.getUsername() == null || user.getUsername().isBlank()
                 || user.getPassword() == null || user.getPassword().isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "Username and password are required"));
+        }
+        if (!isStrongPassword(user.getPassword())) {
+            return ResponseEntity.badRequest().body(Map.of("error", PASSWORD_RULE_MESSAGE));
         }
         if (userRepository.findByUsername(user.getUsername()).isPresent()) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
@@ -81,5 +86,29 @@ public class AuthController {
 
     private String valueOrEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private boolean isStrongPassword(String password) {
+        if (password == null || password.codePointCount(0, password.length()) < 6) {
+            return false;
+        }
+
+        boolean hasLetter = false;
+        boolean hasNumber = false;
+        boolean hasSymbol = false;
+
+        for (int i = 0; i < password.length(); ) {
+            int codePoint = password.codePointAt(i);
+            if (Character.isLetter(codePoint)) {
+                hasLetter = true;
+            } else if (Character.isDigit(codePoint)) {
+                hasNumber = true;
+            } else if (!Character.isWhitespace(codePoint)) {
+                hasSymbol = true;
+            }
+            i += Character.charCount(codePoint);
+        }
+
+        return hasLetter && hasNumber && hasSymbol;
     }
 }
