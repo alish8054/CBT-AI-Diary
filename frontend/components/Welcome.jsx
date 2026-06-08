@@ -17,18 +17,18 @@ export default function Welcome() {
                     {t('welcome_subtitle')}
                 </p>
                 
-                <div className="btn-row" style={{ justifyContent: 'center', flexWrap: 'wrap' }}>
+                <div className="btn-row" style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '12px' }}>
                     <button 
                         onClick={() => navigate('/login')} 
                         className="btn-primary"
-                        style={{ padding: '12px 32px', fontSize: '1.1rem', minWidth: '180px' }}
+                        style={{ padding: '12px 32px', fontSize: '1.1rem', minWidth: '180px', justifyContent: 'center' }}
                     >
                         {t('welcome_login_btn')}
                     </button>
                     <button 
                         onClick={() => navigate('/register')} 
                         className="btn-secondary"
-                        style={{ padding: '12px 32px', fontSize: '1.1rem', minWidth: '180px' }}
+                        style={{ padding: '12px 32px', fontSize: '1.1rem', minWidth: '180px', justifyContent: 'center' }}
                     >
                         {t('auth_btn_register')}
                     </button>
