@@ -37,6 +37,7 @@ export default function ClientAssignments() {
             setSelectedId(null);
             setAnswer('');
             await fetchAssignments();
+            window.dispatchEvent(new Event('assignmentsChanged'));
             toast.success(t('tasks_done'));
         } catch (e) {
             console.error('Error completing assignment:', e);

@@ -6,6 +6,7 @@ import LangSwitcher from './LangSwitcher';
 import { clearAuthSession, getAuthUser, getPhotoSrc } from '../src/authStorage';
 import ThemeToggle from './ThemeToggle';
 import useUnreadChatCount from '../src/useUnreadChatCount';
+import useActiveAssignmentCount from '../src/useActiveAssignmentCount';
 
 const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     const location = useLocation();
@@ -15,6 +16,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
     const [avatarLetter, setAvatarLetter] = useState('?');
     const [avatarSrc, setAvatarSrc] = useState(null);
     const unreadChatCount = useUnreadChatCount();
+    const activeAssignmentCount = useActiveAssignmentCount();
 
     useEffect(() => {
         const loadUser = () => {
@@ -98,6 +100,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                 </Link>
                 <Link to="/client-assignments" className={`nav-item ${isActive('/client-assignments') ? 'active' : ''}`} onClick={handleNavClick}>
                     <span className="nav-label">{t('nav_tasks')}</span>
+                    {activeAssignmentCount > 0 && <span className="nav-badge">{activeAssignmentCount}</span>}
                 </Link>
             </nav>
 
