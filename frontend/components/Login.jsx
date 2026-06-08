@@ -124,7 +124,7 @@ const Login = () => {
             <div className="auth-page">
                 <div className="auth-card">
                     <div className="auth-logo auth-logo-mark">
-                        <img src="/logo.png" alt="Sau Sana" />
+                        <img src="/app-icon-rounded.png" alt="Sau Sana" />
                     </div>
                     <h2 className="auth-title">{t('auth_2fa_title')}</h2>
                     <p className="auth-subtitle">{t('auth_2fa_subtitle')}</p>
@@ -158,7 +158,7 @@ const Login = () => {
         <div className="auth-page">
             <div className="auth-card">
                 <div className="auth-logo auth-logo-mark">
-                    <img src="/logo.png" alt="Sau Sana" />
+                    <img src="/app-icon-rounded.png" alt="Sau Sana" />
                 </div>
                 <h2 className="auth-title">{t('auth_login_title')}</h2>
                 <p className="auth-subtitle">{t('auth_login_sub')}</p>
