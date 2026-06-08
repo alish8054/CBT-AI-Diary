@@ -2,12 +2,6 @@ import { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 import { aiApi } from '../api/aiApi';
 
-const QUICK_PROMPTS_KEYS = [
-  { key: 'ai_quick_anxiety',   icon: '😰' },
-  { key: 'ai_quick_reframe',   icon: '🔄' },
-  { key: 'ai_quick_exercise',  icon: '🧘' },
-  { key: 'ai_quick_mood',      icon: '💭' },
-];
 
 export default function AiChatPage() {
   const { t } = useLanguage();
@@ -100,14 +94,19 @@ export default function AiChatPage() {
             }}>
               {msg.role === 'ai' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <div style={{
-                    width: 24, height: 24, borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 12,
-                  }}>✨</div>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
-                    CBT AI
+                  <img
+                    src="/img_1.png"
+                    alt="Sau Sana"
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      display: 'block',
+                    }}
+                  />
+                  <span style={{ fontSize: 14, color: 'var(--text-primary)', fontWeight: 800, lineHeight: 1 }}>
+                    Sau Sana
                   </span>
                 </div>
               )}
@@ -139,12 +138,17 @@ export default function AiChatPage() {
 
           {loading && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{
-                width: 24, height: 24, borderRadius: '50%',
-                background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 12,
-              }}>✨</div>
+              <img
+                src="/img_1.png"
+                alt="Sau Sana"
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  objectFit: 'cover',
+                  display: 'block',
+                }}
+              />
               <div style={{
                 background: 'var(--bg-surface-2)',
                 border: '1px solid var(--border-subtle)',
@@ -166,24 +170,6 @@ export default function AiChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        <div style={{ padding: '8px 16px 4px', borderTop: '1px solid var(--border-subtle)' }}>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {QUICK_PROMPTS_KEYS.map(q => (
-              <button key={q.key} onClick={() => send(t(q.key))} disabled={historyLoading || loading}
-                style={{
-                  background: 'var(--bg-surface-2)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-full)',
-                  padding: '4px 12px', fontSize: 11,
-                  color: 'var(--text-secondary)', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  transition: 'var(--transition-fast)',
-                }}>
-                {q.icon} {t(q.key)}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div className="chat-input-area">
           <input
