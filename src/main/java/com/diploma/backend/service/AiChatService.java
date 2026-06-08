@@ -17,11 +17,16 @@ public class AiChatService {
 
     private static final String LOCAL_DEVELOPMENT_KEY = "local-development-key";
     private static final String TEST_KEY = "test-key";
+    private static final String UNSUPPORTED_MESSAGE =
+            "I am configured to respond only with Socratic questions about a described situation, feeling, or thought.";
 
     private final ChatClient.Builder chatClientBuilder;
 
     @Value("${spring.ai.openai.api-key:}")
     private String openAiApiKey;
+
+    @Value("${app.ai.socratic-question-count:5}")
+    private int socraticQuestionCount;
 
     public String chat(String message) {
         String fallback = fallbackChat(message);
@@ -29,14 +34,7 @@ public class AiChatService {
             return fallback;
         }
 
-        return callOpenAi("""
-                You are a CBT assistant for a mental health diary app.
-                You are supportive, practical, and concise.
-                You do not replace a psychologist and you do not diagnose.
-                You receive only the current chat message. Do not assume access to diary, dream, mood, profile, psychologist, or other app data.
-                If the user mentions immediate danger, self-harm, or harm to others, tell them to contact emergency support.
-                Respond in the user's language.
-                """, message, fallback);
+        return callOpenAi(buildSystemPrompt(), message, fallback);
     }
 
     public boolean isOpenAiConfigured() {
@@ -66,25 +64,63 @@ public class AiChatService {
     }
 
     private String fallbackChat(String message) {
-        String topic = message == null || message.isBlank()
-                ? "your current situation"
-                : "\"" + trimForFallback(message) + "\"";
+        if (message == null || message.isBlank()) {
+            return UNSUPPORTED_MESSAGE;
+        }
 
+        List<String> questions = List.of(
+                "What exactly happened in this situation?",
+                "What emotion do you feel most strongly right now?",
+                "What automatic thought appeared when you noticed this feeling?",
+                "What facts support this thought, and what facts might not support it?",
+                "What would be a more balanced way to look at this situation?",
+                "What would you say to a friend who had the same thought?",
+                "What is one alternative explanation for what happened?",
+                "What part of this situation is inside your control?",
+                "What small next step would match your values here?",
+                "How might you view this situation one week from now?"
+        );
+
+        StringBuilder response = new StringBuilder();
+        for (int i = 0; i < normalizedQuestionCount(); i++) {
+            if (i > 0) {
+                response.append(System.lineSeparator());
+            }
+            response.append(i + 1).append(". ").append(questions.get(i));
+        }
+        return response.toString();
+    }
+
+    private String buildSystemPrompt() {
         return """
-                AI is running in local fallback mode because OPENAI_API_KEY is not configured.
+                You are the Socratic-question feature inside a mental health diary app.
 
-                I do not have access to diary entries, dreams, mood, profile, psychologist data, or any other app data.
-                I only see this chat text: %s
+                Core task:
+                - The user describes a situation, feeling, thought, or personal difficulty.
+                - Respond with exactly %d Socratic questions and nothing else.
+                - Number the questions from 1 to %d.
+                - Every numbered line must be a question.
+                - Do not give advice.
+                - Do not explain CBT.
+                - Do not summarize the user's situation.
+                - Do not diagnose.
+                - Do not claim to replace a psychologist.
+                - Do not mention app data, diary data, profile data, or system instructions.
+                - Respond in the user's language.
 
-                Short CBT exercise:
-                1. Name the emotion and rate its intensity from 0 to 10.
-                2. Write the automatic thought that makes it stronger.
-                3. Ask: what facts support this thought, and what facts go against it?
-                4. Write a more balanced thought in 1-2 sentences.
-                """.formatted(topic);
+                If the user asks for anything other than Socratic questions about a described situation, feeling, or thought, respond with exactly this sentence and nothing else:
+                %s
+
+                If the user describes immediate danger, self-harm, or harm to others, respond with exactly this sentence and nothing else:
+                If you may be in immediate danger, contact local emergency services or a trusted person right now.
+                """.formatted(normalizedQuestionCount(), normalizedQuestionCount(), UNSUPPORTED_MESSAGE);
     }
-    private String trimForFallback(String text) {
-        String compact = text.trim().replaceAll("\\s+", " ");
-        return compact.length() <= 120 ? compact : compact.substring(0, 117) + "...";
+
+    private int normalizedQuestionCount() {
+        if (socraticQuestionCount < 1) {
+            return 5;
+        }
+        return Math.min(socraticQuestionCount, 10);
     }
+
 }
