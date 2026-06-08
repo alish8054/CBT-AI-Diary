@@ -309,8 +309,8 @@ a {
 
 .theme-toggle {
   width: 100%;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-surface-2);
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
   border-radius: var(--radius-md);
   padding: 8px 10px;
@@ -326,7 +326,7 @@ a {
 
 .theme-toggle:hover {
   color: var(--text-primary);
-  border-color: var(--border-medium);
+  background: var(--nav-hover);
   transform: translateY(-1px);
 }
 

@@ -19,13 +19,6 @@ export default function LangSwitcher({ collapsed }) {
       alignItems: 'center',
       marginBottom: 6,
     }}>
-      {!collapsed && (
-        <span style={{
-          fontSize: 10, fontWeight: 600, color: 'var(--text-muted)',
-          textTransform: 'uppercase', letterSpacing: '0.1em',
-          marginRight: 2, flexShrink: 0,
-        }}>🌐</span>
-      )}
       {LANGS.map(l => (
         <button
           key={l.code}
@@ -33,11 +26,11 @@ export default function LangSwitcher({ collapsed }) {
           onClick={() => changeLang(l.code)}
           className="lang-btn"
           style={{
-            background: lang === l.code ? 'var(--accent-primary)' : 'var(--bg-surface-2)',
+            background: lang === l.code ? 'var(--accent-primary)' : 'transparent',
             color: lang === l.code ? '#fff' : 'var(--text-muted)',
-            border: lang === l.code
-              ? '1px solid var(--accent-primary)'
-              : '1px solid var(--border-subtle)',
+            border: 'none',
+            outline: 'none',
+            boxShadow: 'none',
             borderRadius: 'var(--radius-sm)',
             padding: '3px 8px',
             fontSize: 11,

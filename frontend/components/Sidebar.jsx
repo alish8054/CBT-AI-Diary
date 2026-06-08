@@ -78,26 +78,26 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
 
             <nav className="nav-section">
                 <Link to="/client-home" className={`nav-item ${isActive('/client-home') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">🏠</span> <span className="nav-label">{t('nav_home')}</span>
+                    <span className="nav-label">{t('nav_home')}</span>
                 </Link>
                 <Link to="/diary" className={`nav-item ${isActive('/diary') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">📖</span> <span className="nav-label">{t('nav_diary')}</span>
+                    <span className="nav-label">{t('nav_diary')}</span>
                 </Link>
                 <Link to="/dreams" className={`nav-item ${isActive('/dreams') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">🌙</span> <span className="nav-label">{t('nav_dreams')}</span>
+                    <span className="nav-label">{t('nav_dreams')}</span>
                 </Link>
                 <Link to="/ai-chat" className={`nav-item ${isActive('/ai-chat') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">✨</span> <span className="nav-label">{t('ai_chat_title')}</span>
+                    <span className="nav-label">{t('ai_chat_title')}</span>
                 </Link>
                 <Link to="/inner-world" className={`nav-item ${isActive('/inner-world') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">🌿</span> <span className="nav-label">{t('nav_world')}</span>
+                    <span className="nav-label">{t('nav_world')}</span>
                 </Link>
                 <Link to="/chat" className={`nav-item ${isActive('/chat') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">💬</span> <span className="nav-label">{t('nav_chat')}</span>
+                    <span className="nav-label">{t('nav_chat')}</span>
                     {unreadChatCount > 0 && <span className="nav-badge">{unreadChatCount}</span>}
                 </Link>
                 <Link to="/client-assignments" className={`nav-item ${isActive('/client-assignments') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">📝</span> <span className="nav-label">{t('nav_tasks')}</span>
+                    <span className="nav-label">{t('nav_tasks')}</span>
                 </Link>
             </nav>
 
@@ -107,7 +107,7 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen }) => {
                 <LangSwitcher collapsed={!sidebarOpen} />
                 <div className="divider" style={{ margin: '8px 0' }} />
                 <button onClick={handleLogout} className="logout-btn">
-                    <span className="nav-icon">🚪</span> <span className="logout-label">{t('nav_logout')}</span>
+                    <span className="logout-label">{t('nav_logout')}</span>
                 </button>
             </div>
         </aside>

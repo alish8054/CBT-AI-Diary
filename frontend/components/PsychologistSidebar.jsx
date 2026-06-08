@@ -105,10 +105,10 @@ const PsychologistSidebar = ({ sidebarOpen, setSidebarOpen }) => {
 
             <nav className="nav-section">
                 <Link to="/psychologist" className={`nav-item ${isActive('/psychologist') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">🏠</span> <span className="nav-label">{t('nav_home')}</span>
+                    <span className="nav-label">{t('nav_home')}</span>
                 </Link>
                 <Link to="/psychologist/clients" className={`nav-item ${isActive('/psychologist/clients') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">👥</span> <span className="nav-label">{t('nav_clients')}</span>
+                    <span className="nav-label">{t('nav_clients')}</span>
                     {requestCount > 0 && (
                         <span className="nav-badge" title={`${requestCount} ${t('clients_pending')}`}>
                             {requestCount}
@@ -116,13 +116,13 @@ const PsychologistSidebar = ({ sidebarOpen, setSidebarOpen }) => {
                     )}
                 </Link>
                 <Link to="/psychologist/notes" className={`nav-item ${isActive('/psychologist/notes') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">🗒️</span> <span className="nav-label">{t('nav_notes')}</span>
+                    <span className="nav-label">{t('nav_notes')}</span>
                 </Link>
                 <Link to="/psychologist/assignments" className={`nav-item ${isActive('/psychologist/assignments') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">📝</span> <span className="nav-label">{t('nav_tasks')}</span>
+                    <span className="nav-label">{t('nav_tasks')}</span>
                 </Link>
                 <Link to="/psychologist/chat" className={`nav-item ${isActive('/psychologist/chat') ? 'active' : ''}`} onClick={handleNavClick}>
-                    <span className="nav-icon">💬</span> <span className="nav-label">{t('nav_chat')}</span>
+                    <span className="nav-label">{t('nav_chat')}</span>
                     {unreadChatCount > 0 && <span className="nav-badge">{unreadChatCount}</span>}
                 </Link>
             </nav>
@@ -133,7 +133,7 @@ const PsychologistSidebar = ({ sidebarOpen, setSidebarOpen }) => {
                 <LangSwitcher collapsed={!sidebarOpen} />
                 <div className="divider" style={{ margin: '8px 0' }} />
                 <button onClick={handleLogout} className="logout-btn">
-                    <span className="nav-icon">🚪</span> <span className="logout-label">{t('nav_logout')}</span>
+                    <span className="logout-label">{t('nav_logout')}</span>
                 </button>
             </div>
         </aside>

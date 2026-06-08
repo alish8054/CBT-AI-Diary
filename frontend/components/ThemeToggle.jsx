@@ -23,7 +23,6 @@ export default function ThemeToggle({ collapsed }) {
       className="theme-toggle"
       aria-label={`Switch to ${nextTheme} theme`}
     >
-      <span className="theme-toggle-icon">{theme === 'dark' ? '☀' : '☾'}</span>
       {!collapsed && (
         <span className="theme-toggle-label">
           {theme === 'dark' ? 'Light theme' : 'Dark theme'}
